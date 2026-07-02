@@ -116,6 +116,7 @@ const modalMetaCheckpoint = document.getElementById("modal-meta-checkpoint");
 const modalMetaVae = document.getElementById("modal-meta-vae");
 const modalMetaCfg = document.getElementById("modal-meta-cfg");
 const modalMetaSteps = document.getElementById("modal-meta-steps");
+const modalMetaNodes = document.getElementById("modal-meta-nodes");
 
 // Gallery View Switcher DOM
 const btnExportCsv = document.getElementById("btn-export-csv");
@@ -1430,7 +1431,7 @@ function updateProgressBar(loop, maxLoops, stepPercentage) {
 
 // Create and Add History Card to UI
 function addHistoryCardToUI(data) {
-  const { id, loopIndex, imageUrl, imageBase64, prompt, negativePrompt, checkpoint, vae, textEncoder, clipSkip, cfgScale, steps, score, positives, improvements, timestamp, hiresFix } = data;
+  const { id, loopIndex, imageUrl, imageBase64, prompt, negativePrompt, checkpoint, vae, textEncoder, clipSkip, cfgScale, steps, score, positives, improvements, timestamp, hiresFix, suggestedNodes } = data;
 
   if (id && document.querySelector(`[data-history-id="${id}"]`)) {
     return; // Already rendered
@@ -1460,6 +1461,20 @@ function addHistoryCardToUI(data) {
     hrBadge = `<span class="meta-pill" style="border-color: var(--color-secondary); color: var(--color-secondary);"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">high_quality</span>Hires: ${escapeHtml(hiresFix.upscaler || "Latent")} (x${hiresFix.upscale_by || 1.5} / Denoise: ${hiresFix.denoising_strength || 0.55})</span>`;
   }
 
+  // AI node bypass badges
+  let nodesBadges = "";
+  if (suggestedNodes) {
+    if (suggestedNodes.face_detailer) {
+      nodesBadges += `<span class="meta-pill" style="border-color: #f43f5e; color: #f43f5e; background: rgba(244, 63, 94, 0.05);"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">face</span>Face Detailer</span>`;
+    }
+    if (suggestedNodes.controlnet) {
+      nodesBadges += `<span class="meta-pill" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.05);"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">link</span>ControlNet</span>`;
+    }
+    if (suggestedNodes.upscaler) {
+      nodesBadges += `<span class="meta-pill" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05);"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">grid_view</span>Upscaler</span>`;
+    }
+  }
+
   card.innerHTML = `
     <div class="card-image-wrapper">
       <div class="card-badge">世代 #${loopIndex}${timeStr ? ` <span style="font-size:0.7em;opacity:0.7;margin-left:6px;">${timeStr}</span>` : ""}</div>
@@ -1475,6 +1490,7 @@ function addHistoryCardToUI(data) {
           ${cfgScale ? `<span class="meta-pill">CFG: ${cfgScale}</span>` : ""}
           ${steps ? `<span class="meta-pill">Steps: ${steps}</span>` : ""}
           ${hrBadge}
+          ${nodesBadges}
         </div>
         <div class="score-badge">
           <span class="${scoreColorClass}">${score !== null && score !== undefined ? score : "N/A"}</span>
@@ -1881,6 +1897,25 @@ async function openDetailModalById(id) {
     if (modalMetaVae) modalMetaVae.textContent = entry.vae || "自動選択 / プリセット優先";
     if (modalMetaCfg) modalMetaCfg.textContent = entry.cfgScale !== undefined ? entry.cfgScale : "7.5";
     if (modalMetaSteps) modalMetaSteps.textContent = entry.steps !== undefined ? entry.steps : "25";
+
+    // Bind AI Nodes Control status
+    if (modalMetaNodes) {
+      modalMetaNodes.innerHTML = "";
+      const nodes = entry.suggestedNodes;
+      if (nodes && (nodes.face_detailer || nodes.controlnet || nodes.upscaler)) {
+        if (nodes.face_detailer) {
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #f43f5e; color: #f43f5e; background: rgba(244, 63, 94, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">face</span>Face Detailer: ON</span>`;
+        }
+        if (nodes.controlnet) {
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">link</span>ControlNet: ON</span>`;
+        }
+        if (nodes.upscaler) {
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">grid_view</span>Upscaler: ON</span>`;
+        }
+      } else {
+        modalMetaNodes.innerHTML = `<span style="font-size: 11px; color: var(--color-text-muted);">追加ノードなし / Bypass</span>`;
+      }
+    }
 
     // Bind Prompts
     if (modalPromptText) modalPromptText.textContent = entry.prompt || "";

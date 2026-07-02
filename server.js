@@ -384,6 +384,11 @@ You MUST respond in valid JSON format ONLY. Do not include markdown code block s
     "denoising_strength": <number, 0.3 to 0.85 depending on how much change is needed>,
     "upscale_by": <number, default 1.5>,
     "steps": <number, 10 to 25>
+  },
+  "suggested_nodes": {
+    "face_detailer": <boolean, set true if character face/expression looks deformed, distorted, blurry or low quality and needs face reconstruction/refining>,
+    "controlnet": <boolean, set true if character pose, outlines, or composition is unstable/incorrect relative to goal>,
+    "upscaler": <boolean, set true if overall image texture is blurry, noisy, or lacks micro-details>
   }
 }
 
@@ -400,7 +405,11 @@ Guidance for prompt engineering & SD settings:
    - Adjust denoising_strength (typically 0.3 to 0.85) based on how much change is acceptable (lower values preserve more structure, higher values add more new details but might change the scene).
    - If hires fix is not needed or the image is already sharp and clear, set suggested_hires_fix.enable to false.
 7. Evaluate if the image is over-saturated, has high contrast artifacts (burnt colors), or lacks creative flow. If so, decrease suggested_cfg_scale. If the image completely ignores certain core keywords in the TARGET GOAL, increase suggested_cfg_scale to enforce prompt adherence.
-8. Evaluate if the image details are muddy, noisy, or unfinished. If so, increase suggested_steps. If the image is simple or looks solid, you may keep suggested_steps around 25-30.`;
+8. Evaluate if the image details are muddy, noisy, or unfinished. If so, increase suggested_steps. If the image is simple or looks solid, you may keep suggested_steps around 25-30.
+9. Evaluate if the image would benefit from workflow nodes:
+   - set suggested_nodes.face_detailer to true if human faces/eyes look deformed, low-res or ugly.
+   - set suggested_nodes.controlnet to true if pose, structure or contours need correction.
+   - set suggested_nodes.upscaler to true if image resolution is low or background/detail lines are blurry.`;
 
   const userPrompt = `### TARGET GOAL
 "${goal}"
@@ -896,7 +905,12 @@ let activeJob = {
   hrUpscaler: "Latent",
   hrScale: 1.5,
   hrDenoise: 0.55,
-  hrSteps: 15
+  hrSteps: 15,
+  suggestedNodes: {
+    face_detailer: false,
+    controlnet: false,
+    upscaler: false
+  }
 };
 
 // Auto-restore last session on server startup (if it was active)
@@ -977,7 +991,7 @@ const DEFAULT_COMFY_WORKFLOW = {
 
 // Helper: Modify ComfyUI Workflow JSON dynamically based on loop parameter refinements
 function modifyComfyWorkflow(workflow, params) {
-  const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint } = params;
+  const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint, suggested_nodes } = params;
   const modified = JSON.parse(JSON.stringify(workflow));
 
   let ksamplerId = null;
@@ -1083,6 +1097,33 @@ function modifyComfyWorkflow(workflow, params) {
       modified[loraLoaderId].inputs.lora_name = detectedLoraName;
       modified[loraLoaderId].inputs.strength_model = detectedLoraWeight;
       modified[loraLoaderId].inputs.strength_clip = detectedLoraWeight;
+    }
+  }
+
+  // suggested_nodes のバイパス制御 (Bypass/Enable controls)
+  if (suggested_nodes) {
+    for (const [id, node] of Object.entries(modified)) {
+      const cls = (node.class_type || "").toLowerCase();
+      const title = (node._meta && node._meta.title || "").toLowerCase();
+
+      // 1. Face Detailer
+      if (cls.includes("facedetailer") || cls.includes("adetailer") || title.includes("face") || title.includes("detailer")) {
+        if (suggested_nodes.face_detailer !== undefined) {
+          node.mode = suggested_nodes.face_detailer ? 0 : 4;
+        }
+      }
+      // 2. ControlNet
+      else if (cls.includes("controlnet") || title.includes("controlnet")) {
+        if (suggested_nodes.controlnet !== undefined) {
+          node.mode = suggested_nodes.controlnet ? 0 : 4;
+        }
+      }
+      // 3. Upscaler / Highres
+      else if (cls.includes("upscaler") || cls.includes("ultimatesdupscale") || title.includes("upscale") || title.includes("hires")) {
+        if (suggested_nodes.upscaler !== undefined) {
+          node.mode = suggested_nodes.upscaler ? 0 : 4;
+        }
+      }
     }
   }
 
@@ -1419,7 +1460,8 @@ function saveHistoryInternal(data) {
     hiresFix,
     score,
     positives,
-    improvements
+    improvements,
+    suggestedNodes
   } = data;
 
   const id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -1447,7 +1489,8 @@ function saveHistoryInternal(data) {
     positives,
     improvements,
     timestamp,
-    imagePath: `data/images/${id}.png`
+    imagePath: `data/images/${id}.png`,
+    suggestedNodes: suggestedNodes || null
   };
 
   const history = readHistory();
@@ -1567,7 +1610,8 @@ async function runBackgroundOptimizationLoop() {
             height,
             steps: currentSteps,
             cfg_scale: currentCfgScale,
-            seed: -1
+            seed: -1,
+            suggested_nodes: activeJob.suggestedNodes
           });
           lastImageBase64 = genResult.image;
           activeCheckpointName = currentCheckpoint || "ComfyUI Active Model";
@@ -1678,7 +1722,8 @@ async function runBackgroundOptimizationLoop() {
           denoising_strength: hrDenoise,
           upscale_by: hrScale,
           steps: hrSteps
-        }
+        },
+        suggestedNodes: activeJob.suggestedNodes ? { ...activeJob.suggestedNodes } : null
       };
       saveHistoryInternal(historyData);
 
@@ -1716,6 +1761,13 @@ async function runBackgroundOptimizationLoop() {
       activeJob.hrScale = hrScale;
       activeJob.hrDenoise = hrDenoise;
       activeJob.hrSteps = hrSteps;
+      if (evaluationResult.suggested_nodes) {
+        activeJob.suggestedNodes = {
+          face_detailer: !!evaluationResult.suggested_nodes.face_detailer,
+          controlnet: !!evaluationResult.suggested_nodes.controlnet,
+          upscaler: !!evaluationResult.suggested_nodes.upscaler
+        };
+      }
 
       activeJob.percent = Math.round((loop / maxLoops) * 100);
       writeSession({ ...activeJob, active: true });
@@ -1820,7 +1872,12 @@ app.post("/api/session/start", (req, res) => {
     hrSteps: hrSteps !== undefined ? parseInt(hrSteps) : 15,
     generationEngine: generationEngine || "sd-webui",
     comfyUrl: comfyUrl || "http://127.0.0.1:8188",
-    comfyWorkflow: comfyWorkflow || ""
+    comfyWorkflow: comfyWorkflow || "",
+    suggestedNodes: {
+      face_detailer: false,
+      controlnet: false,
+      upscaler: false
+    }
   };
 
   runBackgroundOptimizationLoop().catch(err => {
