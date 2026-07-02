@@ -9,7 +9,8 @@ settings.json
 data/
 
 # Deployment tarball packages
-app_deploy.tar.gz
+*.tar.gz
+
 
 # OS generated files
 .DS_Store

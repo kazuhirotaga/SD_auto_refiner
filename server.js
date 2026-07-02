@@ -661,7 +661,9 @@ app.get("/api/settings", (req, res) => {
       gemini_api_key: settings.gemini_api_key || process.env.GEMINI_API_KEY || "",
       claude_api_key: settings.claude_api_key || process.env.CLAUDE_API_KEY || "",
       xai_api_key: settings.xai_api_key || process.env.XAI_API_KEY || "",
-      sd_webui_url: settings.sd_webui_url || process.env.SD_WEBUI_URL || "http://127.0.0.1:7860"
+      sd_webui_url: settings.sd_webui_url || process.env.SD_WEBUI_URL || "http://127.0.0.1:7860",
+      comfy_api_url: settings.comfy_api_url || process.env.COMFY_API_URL || "http://127.0.0.1:8188",
+      generation_engine: settings.generation_engine || "sd-webui"
     };
 
     res.json({
@@ -669,7 +671,9 @@ app.get("/api/settings", (req, res) => {
       gemini_api_key: maskKey(currentSettings.gemini_api_key),
       claude_api_key: maskKey(currentSettings.claude_api_key),
       xai_api_key: maskKey(currentSettings.xai_api_key),
-      sd_webui_url: currentSettings.sd_webui_url
+      sd_webui_url: currentSettings.sd_webui_url,
+      comfy_api_url: currentSettings.comfy_api_url,
+      generation_engine: currentSettings.generation_engine
     });
   } catch (err) {
     console.error("Error reading settings:", err.message);
@@ -680,7 +684,7 @@ app.get("/api/settings", (req, res) => {
 // POST /api/settings - 設定を保存
 app.post("/api/settings", (req, res) => {
   try {
-    const { openai_api_key, gemini_api_key, claude_api_key, xai_api_key, sd_webui_url } = req.body;
+    const { openai_api_key, gemini_api_key, claude_api_key, xai_api_key, sd_webui_url, comfy_api_url, generation_engine } = req.body;
     const current = readSettings();
 
     const isMasked = (val) => val && (val.includes("...") || val.includes("***"));
@@ -700,12 +704,71 @@ app.post("/api/settings", (req, res) => {
     if (sd_webui_url !== undefined) {
       current.sd_webui_url = sd_webui_url;
     }
+    if (comfy_api_url !== undefined) {
+      current.comfy_api_url = comfy_api_url;
+    }
+    if (generation_engine !== undefined) {
+      current.generation_engine = generation_engine;
+    }
 
     writeSettings(current);
     res.json({ message: "Settings saved successfully." });
   } catch (err) {
     console.error("Error saving settings:", err.message);
     res.status(500).json({ error: "Failed to save settings.", details: err.message });
+  }
+});
+
+// POST /api/comfy/test - ComfyUI接続テスト & Checkpoint一覧取得
+app.post("/api/comfy/test", async (req, res) => {
+  const { url } = req.body;
+  const targetUrl = url || "http://127.0.0.1:8188";
+
+  try {
+    const response = await axios.get(`${targetUrl}/object_info`, { timeout: 5000 });
+    const info = response.data;
+
+    let models = [];
+    if (info.CheckpointLoaderSimple) {
+      models = info.CheckpointLoaderSimple.input.required.ckpt_name[0] || [];
+    } else if (info.ImageOnlyCheckpointLoader) {
+      models = info.ImageOnlyCheckpointLoader.input.required.ckpt_name[0] || [];
+    }
+
+    res.json({
+      ok: true,
+      models: models,
+      modelsCount: models.length
+    });
+  } catch (err) {
+    console.error("ComfyUI connection test failed:", err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// POST /api/comfy/resources - ComfyUIの各種リソース（VAEs, LoRAs, Upscalersなど）取得
+app.post("/api/comfy/resources", async (req, res) => {
+  const { url } = req.body;
+  const targetUrl = url || "http://127.0.0.1:8188";
+
+  try {
+    const response = await axios.get(`${targetUrl}/object_info`, { timeout: 8000 });
+    const info = response.data;
+
+    const vaes = info.VAELoader ? (info.VAELoader.input.required.vae_name[0] || []) : [];
+    const loras = info.LoraLoader ? (info.LoraLoader.input.required.lora_name[0] || []) : [];
+    const upscalers = info.UpscaleModelLoader ? (info.UpscaleModelLoader.input.required.model_name[0] || []) : [];
+    const textEncoders = info.CLIPLoader ? (info.CLIPLoader.input.required.clip_name[0] || []) : [];
+
+    res.json({
+      vaes,
+      loras,
+      upscalers,
+      textEncoders
+    });
+  } catch (err) {
+    console.error("Failed to fetch ComfyUI resources:", err.message);
+    res.status(500).json({ error: "Failed to fetch ComfyUI resources.", details: err.message });
   }
 });
 
@@ -850,6 +913,254 @@ try {
   }
 } catch (err) {
   console.warn("Failed to load initial session from disk:", err.message);
+}
+
+const DEFAULT_COMFY_WORKFLOW = {
+  "3": {
+    "inputs": {
+      "seed": 8566258,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": ["4", 0],
+      "positive": ["6", 0],
+      "negative": ["7", 0],
+      "latent_image": ["5", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "v1-5-pruned-emaonly.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "5": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage"
+  },
+  "6": {
+    "inputs": {
+      "text": "masterpiece, best quality, a beautiful girl",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "7": {
+    "inputs": {
+      "text": "bad hands, blurry",
+      "clip": ["4", 1]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "8": {
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["4", 2]
+    },
+    "class_type": "VAEDecode"
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "PromptCraft",
+      "images": ["8", 0]
+    },
+    "class_type": "SaveImage"
+  }
+};
+
+// Helper: Modify ComfyUI Workflow JSON dynamically based on loop parameter refinements
+function modifyComfyWorkflow(workflow, params) {
+  const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint } = params;
+  const modified = JSON.parse(JSON.stringify(workflow));
+
+  let ksamplerId = null;
+  let positiveNodeId = null;
+  let negativeNodeId = null;
+  let latentNodeId = null;
+  let modelNodeId = null;
+
+  for (const [id, node] of Object.entries(modified)) {
+    if (node.class_type === "KSampler") {
+      ksamplerId = id;
+      if (node.inputs.positive && Array.isArray(node.inputs.positive)) {
+        positiveNodeId = node.inputs.positive[0];
+      }
+      if (node.inputs.negative && Array.isArray(node.inputs.negative)) {
+        negativeNodeId = node.inputs.negative[0];
+      }
+      if (node.inputs.latent_image && Array.isArray(node.inputs.latent_image)) {
+        latentNodeId = node.inputs.latent_image[0];
+      }
+      if (node.inputs.model && Array.isArray(node.inputs.model)) {
+        modelNodeId = node.inputs.model[0];
+      }
+      break;
+    }
+  }
+
+  if (ksamplerId) {
+    const ksampler = modified[ksamplerId];
+    ksampler.inputs.steps = steps || 20;
+    ksampler.inputs.cfg = cfg_scale || 7.0;
+    ksampler.inputs.seed = seed && seed !== -1 ? seed : Math.floor(Math.random() * 1000000000);
+  }
+
+  let cleanPrompt = prompt;
+  let detectedLoraName = null;
+  let detectedLoraWeight = 1.0;
+  
+  const loraMatch = prompt.match(/<lora:([^:]+):([^>]+)>/i);
+  if (loraMatch) {
+    detectedLoraName = loraMatch[1].trim();
+    detectedLoraWeight = parseFloat(loraMatch[2]) || 1.0;
+    cleanPrompt = prompt.replace(/<lora:[^>]+>/gi, "").replace(/,\s*,/g, ",").trim();
+  }
+
+  if (positiveNodeId && modified[positiveNodeId]) {
+    modified[positiveNodeId].inputs.text = cleanPrompt;
+  } else {
+    for (const node of Object.values(modified)) {
+      if (node.class_type === "CLIPTextEncode" && (!node.inputs.text || !node.inputs.text.includes("worst"))) {
+        node.inputs.text = cleanPrompt;
+        break;
+      }
+    }
+  }
+
+  if (negativeNodeId && modified[negativeNodeId]) {
+    modified[negativeNodeId].inputs.text = negative_prompt;
+  } else {
+    for (const node of Object.values(modified)) {
+      if (node.class_type === "CLIPTextEncode" && node.inputs.text && node.inputs.text.includes("worst")) {
+        node.inputs.text = negative_prompt;
+        break;
+      }
+    }
+  }
+
+  if (latentNodeId && modified[latentNodeId]) {
+    modified[latentNodeId].inputs.width = width || 512;
+    modified[latentNodeId].inputs.height = height || 512;
+  } else {
+    for (const node of Object.values(modified)) {
+      if (node.class_type === "EmptyLatentImage") {
+        node.inputs.width = width || 512;
+        node.inputs.height = height || 512;
+        break;
+      }
+    }
+  }
+
+  if (checkpoint) {
+    let loaderId = null;
+    for (const [id, node] of Object.entries(modified)) {
+      if (node.class_type === "CheckpointLoaderSimple") {
+        loaderId = id;
+        break;
+      }
+    }
+    if (loaderId && modified[loaderId]) {
+      modified[loaderId].inputs.ckpt_name = checkpoint;
+    }
+  }
+
+  if (detectedLoraName) {
+    let loraLoaderId = null;
+    for (const [id, node] of Object.entries(modified)) {
+      if (node.class_type === "LoraLoader") {
+        loraLoaderId = id;
+        break;
+      }
+    }
+    if (loraLoaderId && modified[loraLoaderId]) {
+      modified[loraLoaderId].inputs.lora_name = detectedLoraName;
+      modified[loraLoaderId].inputs.strength_model = detectedLoraWeight;
+      modified[loraLoaderId].inputs.strength_clip = detectedLoraWeight;
+    }
+  }
+
+  return modified;
+}
+
+// Generate Image using ComfyUI API
+async function generateComfyImage(comfyUrl, workflow, params) {
+  const parsedWorkflow = workflow ? JSON.parse(workflow) : DEFAULT_COMFY_WORKFLOW;
+  const modifiedWorkflow = modifyComfyWorkflow(parsedWorkflow, params);
+
+  const res = await axios.post(`${comfyUrl}/prompt`, { prompt: modifiedWorkflow }, { timeout: 15000 });
+  const promptId = res.data.prompt_id;
+  if (!promptId) {
+    throw new Error("Failed to queue prompt to ComfyUI. No prompt_id received.");
+  }
+
+  console.log(`ComfyUI job queued. prompt_id: ${promptId}. Waiting for completion...`);
+  
+  let completed = false;
+  let historyData = null;
+  const maxPolls = 180; // 5秒間隔で最大15分間監視
+  for (let poll = 1; poll <= maxPolls; poll++) {
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    try {
+      const historyRes = await axios.get(`${comfyUrl}/history/${promptId}`);
+      if (historyRes.data && historyRes.data[promptId]) {
+        historyData = historyRes.data[promptId];
+        completed = true;
+        break;
+      }
+    } catch (e) {
+      // Ignore polling errors
+    }
+  }
+
+  if (!completed || !historyData) {
+    throw new Error("Timeout waiting for ComfyUI generation job to complete.");
+  }
+
+  let filename = null;
+  let subfolder = null;
+  let type = "output";
+
+  if (historyData.outputs) {
+    for (const nodeOutput of Object.values(historyData.outputs)) {
+      if (nodeOutput.images && nodeOutput.images.length > 0) {
+        filename = nodeOutput.images[0].filename;
+        subfolder = nodeOutput.images[0].subfolder;
+        type = nodeOutput.images[0].type || "output";
+        break;
+      }
+    }
+  }
+
+  if (!filename) {
+    throw new Error("No image output found in ComfyUI history log.");
+  }
+
+  let viewUrl = `${comfyUrl}/view?filename=${encodeURIComponent(filename)}&type=${type}`;
+  if (subfolder) {
+    viewUrl += `&subfolder=${encodeURIComponent(subfolder)}`;
+  }
+
+  console.log(`Fetching generated image from ComfyUI: ${viewUrl}`);
+  const imgRes = await axios.get(viewUrl, { responseType: "arraybuffer", timeout: 30000 });
+  const base64Image = Buffer.from(imgRes.data, "binary").toString("base64");
+  
+  return {
+    image: base64Image,
+    info: {
+      prompt: params.prompt,
+      negative_prompt: params.negative_prompt,
+      seed: params.seed || -1,
+      steps: params.steps,
+      cfg_scale: params.cfg_scale
+    }
+  };
 }
 
 // Generate Image (Internal Helper)
@@ -1194,17 +1505,31 @@ async function runBackgroundOptimizationLoop() {
 
     let availableLoras = [];
     let availableUpscalers = [];
-    try {
-      const loraRes = await axios.get(`${sdUrl}/sdapi/v1/loras`, { timeout: 5000 });
-      availableLoras = loraRes.data.map(l => l.name);
-    } catch (e) {
-      console.warn("Could not fetch LoRAs for AI context:", e.message);
-    }
-    try {
-      const upscalerRes = await axios.get(`${sdUrl}/sdapi/v1/upscalers`, { timeout: 5000 });
-      availableUpscalers = upscalerRes.data.map(u => u.name || u);
-    } catch (e) {
-      console.warn("Could not fetch Upscalers for AI context:", e.message);
+    const engine = activeJob.generationEngine || "sd-webui";
+    const comfyUrl = activeJob.comfyUrl || "http://127.0.0.1:8188";
+
+    if (engine === "comfyui") {
+      try {
+        const infoRes = await axios.get(`${comfyUrl}/object_info`, { timeout: 5000 });
+        const info = infoRes.data;
+        availableLoras = info.LoraLoader ? (info.LoraLoader.input.required.lora_name[0] || []) : [];
+        availableUpscalers = info.UpscaleModelLoader ? (info.UpscaleModelLoader.input.required.model_name[0] || []) : [];
+      } catch (e) {
+        console.warn("Could not fetch ComfyUI resources for AI context:", e.message);
+      }
+    } else {
+      try {
+        const loraRes = await axios.get(`${sdUrl}/sdapi/v1/loras`, { timeout: 5000 });
+        availableLoras = loraRes.data.map(l => l.name);
+      } catch (e) {
+        console.warn("Could not fetch LoRAs for AI context:", e.message);
+      }
+      try {
+        const upscalerRes = await axios.get(`${sdUrl}/sdapi/v1/upscalers`, { timeout: 5000 });
+        availableUpscalers = upscalerRes.data.map(u => u.name || u);
+      } catch (e) {
+        console.warn("Could not fetch Upscalers for AI context:", e.message);
+      }
     }
 
     const startLoop = activeJob.currentLoop + 1;
@@ -1233,26 +1558,41 @@ async function runBackgroundOptimizationLoop() {
       let lastImageBase64 = null;
       let activeCheckpointName = currentCheckpoint;
       try {
-        const genResult = await generateImageInternal({
-          prompt: promptWithQuality,
-          negative_prompt: currentNegativePrompt,
-          checkpoint: currentCheckpoint,
-          vae: currentVae,
-          text_encoder: currentTextEncoder,
-          clip_skip: currentClipSkip,
-          width,
-          height,
-          steps: currentSteps,
-          cfg_scale: currentCfgScale,
-          enable_hr: hrEnabled,
-          hr_upscaler: hrUpscaler,
-          hr_scale: hrScale,
-          denoising_strength: hrDenoise,
-          hr_second_pass_steps: hrSteps
-        });
-        lastImageBase64 = genResult.image;
-        if (genResult.info && genResult.info.sd_model_name) {
-          activeCheckpointName = genResult.info.sd_model_name;
+        if (engine === "comfyui") {
+          const genResult = await generateComfyImage(comfyUrl, activeJob.comfyWorkflow, {
+            prompt: promptWithQuality,
+            negative_prompt: currentNegativePrompt,
+            checkpoint: currentCheckpoint,
+            width,
+            height,
+            steps: currentSteps,
+            cfg_scale: currentCfgScale,
+            seed: -1
+          });
+          lastImageBase64 = genResult.image;
+          activeCheckpointName = currentCheckpoint || "ComfyUI Active Model";
+        } else {
+          const genResult = await generateImageInternal({
+            prompt: promptWithQuality,
+            negative_prompt: currentNegativePrompt,
+            checkpoint: currentCheckpoint,
+            vae: currentVae,
+            text_encoder: currentTextEncoder,
+            clip_skip: currentClipSkip,
+            width,
+            height,
+            steps: currentSteps,
+            cfg_scale: currentCfgScale,
+            enable_hr: hrEnabled,
+            hr_upscaler: hrUpscaler,
+            hr_scale: hrScale,
+            denoising_strength: hrDenoise,
+            hr_second_pass_steps: hrSteps
+          });
+          lastImageBase64 = genResult.image;
+          if (genResult.info && genResult.info.sd_model_name) {
+            activeCheckpointName = genResult.info.sd_model_name;
+          }
         }
       } catch (err) {
         console.error("Background Generation Error:", err.message);
@@ -1442,7 +1782,10 @@ app.post("/api/session/start", (req, res) => {
     hrUpscaler,
     hrScale,
     hrDenoise,
-    hrSteps
+    hrSteps,
+    generationEngine,
+    comfyUrl,
+    comfyWorkflow
   } = req.body;
 
   activeJob = {
@@ -1474,7 +1817,10 @@ app.post("/api/session/start", (req, res) => {
     hrUpscaler: hrUpscaler || "Latent",
     hrScale: hrScale !== undefined ? parseFloat(hrScale) : 1.5,
     hrDenoise: hrDenoise !== undefined ? parseFloat(hrDenoise) : 0.55,
-    hrSteps: hrSteps !== undefined ? parseInt(hrSteps) : 15
+    hrSteps: hrSteps !== undefined ? parseInt(hrSteps) : 15,
+    generationEngine: generationEngine || "sd-webui",
+    comfyUrl: comfyUrl || "http://127.0.0.1:8188",
+    comfyWorkflow: comfyWorkflow || ""
   };
 
   runBackgroundOptimizationLoop().catch(err => {

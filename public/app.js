@@ -45,6 +45,9 @@ const STORAGE_KEY_INITIAL_PROMPT = "promptcraft_initial_prompt";
 const STORAGE_KEY_CFG_SCALE = "promptcraft_cfg_scale";
 const STORAGE_KEY_STEPS = "promptcraft_steps";
 const STORAGE_KEY_AI_PARAMS = "promptcraft_ai_params";
+const STORAGE_KEY_GENERATION_ENGINE = "promptcraft_generation_engine";
+const STORAGE_KEY_COMFY_URL = "promptcraft_comfy_url";
+const STORAGE_KEY_COMFY_WORKFLOW = "promptcraft_comfy_workflow";
 
 // DOM Elements
 const startBtn = document.getElementById("start-btn");
@@ -76,6 +79,14 @@ const aiProviderSelect = document.getElementById("ai-provider-select");
 const aiApiKeyInput = document.getElementById("ai-api-key");
 const sdUrlInput = document.getElementById("sd-url-input");
 const testConnectionBtn = document.getElementById("test-connection-btn");
+
+// ComfyUI DOM Elements
+const selectGenerationEngine = document.getElementById("select-generation-engine");
+const panelSdWebuiSettings = document.getElementById("panel-sd-webui-settings");
+const panelComfyuiSettings = document.getElementById("panel-comfyui-settings");
+const comfyUrlInput = document.getElementById("comfy-url-input");
+const comfyWorkflowInput = document.getElementById("comfy-workflow-input");
+const testComfyConnectionBtn = document.getElementById("test-comfy-connection-btn");
 
 const aiResourceToggle = document.getElementById("ai-resource-toggle");
 const activeCheckpointText = document.getElementById("active-checkpoint");
@@ -190,11 +201,33 @@ async function loadSavedSettings() {
         sdUrlInput.value = localStorage.getItem(STORAGE_KEY_SD_URL);
       }
 
+      if (settings.comfy_api_url) {
+        comfyUrlInput.value = settings.comfy_api_url;
+      } else if (localStorage.getItem(STORAGE_KEY_COMFY_URL)) {
+        comfyUrlInput.value = localStorage.getItem(STORAGE_KEY_COMFY_URL);
+      }
+
+      if (settings.generation_engine) {
+        selectGenerationEngine.value = settings.generation_engine;
+      } else if (localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE)) {
+        selectGenerationEngine.value = localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE);
+      }
+
       const provider = aiProviderSelect.value;
       aiApiKeyInput.value = window.savedApiKeys[provider] || "";
     }
   } catch (err) {
     console.error("Failed to load settings from server:", err);
+  }
+
+  // Load remaining local storage ComfyUI parameters
+  if (localStorage.getItem(STORAGE_KEY_COMFY_WORKFLOW) && comfyWorkflowInput) {
+    comfyWorkflowInput.value = localStorage.getItem(STORAGE_KEY_COMFY_WORKFLOW);
+  }
+
+  // Toggle active engine panels based on engine select
+  if (selectGenerationEngine) {
+    toggleEngineSettingsPanel(selectGenerationEngine.value);
   }
 }
 
@@ -265,6 +298,76 @@ function setupEventListeners() {
       console.error("Failed to save SD URL to server:", err);
     }
   });
+
+  if (selectGenerationEngine) {
+    selectGenerationEngine.addEventListener("change", async () => {
+      const engine = selectGenerationEngine.value;
+      localStorage.setItem(STORAGE_KEY_GENERATION_ENGINE, engine);
+      toggleEngineSettingsPanel(engine);
+      try {
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ generation_engine: engine })
+        });
+        // Reload resources based on selected engine
+        fetchGenerationResources();
+      } catch (err) {
+        console.error("Failed to save engine selection to server:", err);
+      }
+    });
+  }
+
+  if (comfyUrlInput) {
+    comfyUrlInput.addEventListener("change", async () => {
+      const url = comfyUrlInput.value.trim();
+      localStorage.setItem(STORAGE_KEY_COMFY_URL, url);
+      try {
+        await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comfy_api_url: url })
+        });
+      } catch (err) {
+        console.error("Failed to save ComfyUI URL to server:", err);
+      }
+    });
+  }
+
+  if (comfyWorkflowInput) {
+    comfyWorkflowInput.addEventListener("change", () => {
+      localStorage.setItem(STORAGE_KEY_COMFY_WORKFLOW, comfyWorkflowInput.value.trim());
+    });
+  }
+
+  if (testComfyConnectionBtn) {
+    testComfyConnectionBtn.addEventListener("click", async () => {
+      const url = comfyUrlInput.value.trim();
+      testComfyConnectionBtn.disabled = true;
+      testComfyConnectionBtn.innerHTML = '<span class="material-icons-round loader-spinner" style="font-size:16px;"></span> 接続確認中...';
+      
+      try {
+        const res = await fetch("/api/comfy/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+        
+        const result = await res.json();
+        if (res.ok && result.ok) {
+          alert(`ComfyUI 接続成功！\n検出モデル数: ${result.modelsCount}`);
+          fetchGenerationResources();
+        } else {
+          alert(`ComfyUI 接続失敗: ${result.error || "応答なし"}`);
+        }
+      } catch (err) {
+        alert(`ComfyUI 接続エラー: ${err.message}`);
+      } finally {
+        testComfyConnectionBtn.disabled = false;
+        testComfyConnectionBtn.innerHTML = '<span class="material-icons-round">sync</span> ComfyUI 接続確認';
+      }
+    });
+  }
   goalInput.addEventListener("input", () => {
     localStorage.setItem(STORAGE_KEY_GOAL, goalInput.value);
   });
@@ -287,7 +390,7 @@ function setupEventListeners() {
   testConnectionBtn.addEventListener("click", async () => {
     testConnectionBtn.disabled = true;
     testConnectionBtn.innerHTML = '<span class="material-icons-round loader-spinner"></span> 接続確認中...';
-    await checkSdConnection();
+    await fetchGenerationResources();
     testConnectionBtn.disabled = false;
     testConnectionBtn.innerHTML = '<span class="material-icons-round">sync</span> 接続確認';
   });
@@ -699,6 +802,16 @@ async function resumeInterruptedSession() {
   // Deprecated
 }
 
+// Check Selected Engine Connection & Fetch Resources
+async function fetchGenerationResources() {
+  const engine = selectGenerationEngine ? selectGenerationEngine.value : "sd-webui";
+  if (engine === "sd-webui") {
+    await checkSdConnection();
+  } else if (engine === "comfyui") {
+    await checkComfyConnection();
+  }
+}
+
 // Check Stable Diffusion WebUI Connection & Fetch Resources
 async function checkSdConnection() {
   const sdUrl = sdUrlInput.value.trim();
@@ -726,15 +839,49 @@ async function checkSdConnection() {
   }
 }
 
+// Check ComfyUI Connection & Fetch Resources
+async function checkComfyConnection() {
+  const comfyUrl = comfyUrlInput.value.trim();
+  updateSdStatus(false, "ComfyUI 接続確認中...");
+
+  try {
+    const res = await fetch("/api/comfy/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: comfyUrl })
+    });
+
+    if (res.ok) {
+      const result = await res.json();
+      if (result.ok) {
+        activeCheckpoints = result.models || [];
+        updateSdStatus(true, "ComfyUI 接続成功");
+        await fetchComfyResources(comfyUrl);
+      } else {
+        updateSdStatus(false, "ComfyUI 未接続 (APIエラー)");
+        clearResourceLists();
+      }
+    } else {
+      updateSdStatus(false, "ComfyUI 未接続 (HTTPエラー)");
+      clearResourceLists();
+    }
+  } catch (err) {
+    updateSdStatus(false, "ComfyUI 未接続 (接続エラー)");
+    clearResourceLists();
+  }
+}
+
 function updateSdStatus(isOnline, text) {
-  if (isOnline) {
-    sdStatusDot.className = "status-indicator online";
-    sdStatusText.textContent = text;
-    sdStatusText.style.color = "var(--color-success)";
-  } else {
-    sdStatusDot.className = "status-indicator offline";
-    sdStatusText.textContent = text;
-    sdStatusText.style.color = "var(--color-error)";
+  if (sdStatusDot && sdStatusText) {
+    if (isOnline) {
+      sdStatusDot.className = "status-indicator online";
+      sdStatusText.textContent = text;
+      sdStatusText.style.color = "var(--color-success)";
+    } else {
+      sdStatusDot.className = "status-indicator offline";
+      sdStatusText.textContent = text;
+      sdStatusText.style.color = "var(--color-error)";
+    }
   }
 }
 
@@ -745,7 +892,6 @@ async function fetchSdResources(sdUrl) {
     renderResourceList(checkpointsList, activeCheckpoints, "checkpoint");
 
     // Try to discover which checkpoint is active
-    // Simple fetch options to read current active checkpoint/vae
     const optionsRes = await fetch("/api/sd/options", { headers: { "x-sd-url": sdUrl } });
     if (optionsRes.ok) {
       const options = await optionsRes.json();
@@ -770,13 +916,11 @@ async function fetchSdResources(sdUrl) {
         activeTeText.textContent = appliedTe;
       }
       
-      // CLIP Skipの読み込み
       const activeClipSkipText = document.getElementById("active-clip-skip");
       if (activeClipSkipText) {
         activeClipSkipText.textContent = options.CLIP_stop_at_last_layers !== undefined ? options.CLIP_stop_at_last_layers : "未設定";
       }
       
-      // CFG Scale と Steps の読み込み
       if (activeCfgScaleText) {
         activeCfgScaleText.textContent = inputCfgScale ? inputCfgScale.value : "7.5";
       }
@@ -794,7 +938,6 @@ async function fetchSdResources(sdUrl) {
       }
     }
     
-    // フォールバック: WebUIからVAEのリストが取得できない場合は標準的なリストを維持して描画
     if (activeVaes.length === 0) {
       activeVaes = ["Automatic", "animevae.pt", "vae-ft-mse-840000-ema-pruned.safetensors", "qwen_image_vae.safetensors"];
     }
@@ -843,6 +986,56 @@ async function fetchSdResources(sdUrl) {
 
   } catch (err) {
     console.error("Error fetching SD resources:", err);
+  }
+}
+
+// Fetch Resources from ComfyUI
+async function fetchComfyResources(comfyUrl) {
+  try {
+    renderResourceList(checkpointsList, activeCheckpoints, "checkpoint");
+    activeCheckpointText.textContent = activeCheckpoints[0] || "未設定";
+
+    const res = await fetch("/api/comfy/resources", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: comfyUrl })
+    });
+
+    if (res.ok) {
+      const resources = await res.json();
+      
+      activeVaes = resources.vaes || [];
+      if (activeVaes.length === 0) activeVaes = ["Automatic"];
+      renderResourceList(vaesList, activeVaes, "vae");
+      activeVaeText.textContent = activeVaes[0] || "未選択";
+
+      activeTextEncoders = resources.textEncoders || [];
+      if (activeTextEncoders.length === 0) activeTextEncoders = ["Automatic"];
+      renderResourceList(textEncodersList, activeTextEncoders, "text-encoder");
+      const activeTeText = document.getElementById("active-text-encoder");
+      if (activeTeText) activeTeText.textContent = activeTextEncoders[0] || "未選択";
+
+      activeLoras = resources.loras || [];
+      renderResourceList(lorasList, activeLoras, "lora");
+
+      activeUpscalers = resources.upscalers || [];
+      if (activeUpscalers.length === 0) activeUpscalers = ["Latent"];
+      
+      const activeClipSkipText = document.getElementById("active-clip-skip");
+      if (activeClipSkipText) activeClipSkipText.textContent = "N/A (ComfyUI)";
+      if (activeCfgScaleText) activeCfgScaleText.textContent = inputCfgScale ? inputCfgScale.value : "7.5";
+      if (activeStepsText) activeStepsText.textContent = inputSteps ? inputSteps.value : "25";
+    }
+
+    // Update Select elements
+    updateManualSelectOptions(document.getElementById("select-checkpoint"), activeCheckpoints, "(現在の適用モデルを使用)");
+    updateManualSelectOptions(document.getElementById("select-vae"), activeVaes, "(自動選択 / プリセット優先)");
+    updateManualSelectOptions(document.getElementById("select-text-encoder"), activeTextEncoders, "(自動選択 / プリセット優先)");
+    updateManualSelectOptions(document.getElementById("select-hr-upscaler"), activeUpscalers, "Latent");
+    updateManualSelectOptions(selectLora, activeLoras, "(LoRAを選択)");
+
+  } catch (err) {
+    console.error("Error fetching ComfyUI resources:", err);
   }
 }
 
@@ -1053,7 +1246,10 @@ async function startImprovementLoop(resumeSession = null) {
     hrUpscaler,
     hrScale,
     hrDenoise,
-    hrSteps
+    hrSteps,
+    generationEngine: selectGenerationEngine ? selectGenerationEngine.value : "sd-webui",
+    comfyUrl: comfyUrlInput ? comfyUrlInput.value.trim() : "http://127.0.0.1:8188",
+    comfyWorkflow: comfyWorkflowInput ? comfyWorkflowInput.value.trim() : ""
   };
 
   // Set running state visually

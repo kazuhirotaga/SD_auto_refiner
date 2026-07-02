@@ -314,17 +314,48 @@
             </div>
           </div>
 
-          <!-- SD WebUI Connection Card -->
-          <div class="glass-panel settings-card">
-            <h2><span class="material-icons-round">settings_ethernet</span> Stable Diffusion WebUI 接続</h2>
+          <!-- Generation Engine & Connection Card -->
+          <div class="glass-panel settings-card" style="grid-column: span 1;">
+            <h2><span class="material-icons-round">settings_ethernet</span> 画像生成エンジン設定</h2>
+            
             <div class="input-group">
-              <label for="sd-url-input">WebUI API URL</label>
-              <input type="text" id="sd-url-input" value="http://127.0.0.1:7860" placeholder="例: http://127.0.0.1:7860">
-              <p class="input-tip">WebUI起動時に <code>--api</code> 引数を付けて起動しておく必要があります。</p>
+              <label for="select-generation-engine">生成エンジン</label>
+              <select id="select-generation-engine">
+                <option value="sd-webui" selected>Stable Diffusion WebUI (Forge/A1111)</option>
+                <option value="comfyui">ComfyUI</option>
+              </select>
             </div>
-            <button id="test-connection-btn" class="btn btn-secondary">
-              <span class="material-icons-round">sync</span> 接続確認
-            </button>
+
+            <!-- SD WebUI Settings Panel -->
+            <div id="panel-sd-webui-settings" class="engine-settings-panel">
+              <div class="input-group">
+                <label for="sd-url-input">WebUI API URL</label>
+                <input type="text" id="sd-url-input" value="http://127.0.0.1:7860" placeholder="例: http://127.0.0.1:7860">
+                <p class="input-tip">WebUI起動時に <code>--api</code> 引数を付けて起動しておく必要があります。</p>
+              </div>
+              <button id="test-connection-btn" class="btn btn-secondary" style="width: 100%;">
+                <span class="material-icons-round">sync</span> 接続確認
+              </button>
+            </div>
+
+            <!-- ComfyUI Settings Panel (Hidden by default) -->
+            <div id="panel-comfyui-settings" class="engine-settings-panel hidden" style="margin-top: 12px;">
+              <div class="input-group">
+                <label for="comfy-url-input">ComfyUI API URL</label>
+                <input type="text" id="comfy-url-input" value="http://127.0.0.1:8188" placeholder="例: http://127.0.0.1:8188">
+                <p class="input-tip">ComfyUIが起動しているポートを指定します（標準は8188）。</p>
+              </div>
+              
+              <div class="input-group" style="margin-top: 8px;">
+                <label for="comfy-workflow-input">カスタムワークフロー JSON (API形式/任意)</label>
+                <textarea id="comfy-workflow-input" rows="6" placeholder="ComfyUIで「Save (API Format)」したJSONを貼り付けます。空欄の場合は標準のtxt2imgテンプレートが適用されます。" style="width: 100%; font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; color: var(--color-text); resize: vertical;"></textarea>
+                <p class="input-tip">※ 「Enable Dev mode」を有効にして保存したAPIフォーマットのJSONが必要です。</p>
+              </div>
+
+              <button id="test-comfy-connection-btn" class="btn btn-secondary" style="width: 100%;">
+                <span class="material-icons-round">sync</span> ComfyUI 接続確認
+              </button>
+            </div>
           </div>
         </div>
       </div>
