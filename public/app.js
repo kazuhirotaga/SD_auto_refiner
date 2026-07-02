@@ -256,52 +256,60 @@ function setupEventListeners() {
   });
 
   // Settings inputs save on change
-  aiProviderSelect.addEventListener("change", () => {
-    localStorage.setItem(STORAGE_KEY_API_PROVIDER, aiProviderSelect.value);
-    if (window.savedApiKeys) {
-      aiApiKeyInput.value = window.savedApiKeys[aiProviderSelect.value] || "";
-    }
-  });
-  aiApiKeyInput.addEventListener("change", async () => {
-    const provider = aiProviderSelect.value;
-    const keyVal = aiApiKeyInput.value.trim();
-    const isMasked = (val) => val && (val.includes("...") || val.includes("***"));
-    
-    if (keyVal && !isMasked(keyVal)) {
-      const payload = {};
-      if (provider === "openai") payload.openai_api_key = keyVal;
-      else if (provider === "gemini") payload.gemini_api_key = keyVal;
-      else if (provider === "claude") payload.claude_api_key = keyVal;
-      else if (provider === "grok") payload.xai_api_key = keyVal;
+  if (aiProviderSelect) {
+    aiProviderSelect.addEventListener("change", () => {
+      localStorage.setItem(STORAGE_KEY_API_PROVIDER, aiProviderSelect.value);
+      if (window.savedApiKeys && aiApiKeyInput) {
+        aiApiKeyInput.value = window.savedApiKeys[aiProviderSelect.value] || "";
+      }
+    });
+  }
 
+  if (aiApiKeyInput && aiProviderSelect) {
+    aiApiKeyInput.addEventListener("change", async () => {
+      const provider = aiProviderSelect.value;
+      const keyVal = aiApiKeyInput.value.trim();
+      const isMasked = (val) => val && (val.includes("...") || val.includes("***"));
+      
+      if (keyVal && !isMasked(keyVal)) {
+        const payload = {};
+        if (provider === "openai") payload.openai_api_key = keyVal;
+        else if (provider === "gemini") payload.gemini_api_key = keyVal;
+        else if (provider === "claude") payload.claude_api_key = keyVal;
+        else if (provider === "grok") payload.xai_api_key = keyVal;
+
+        try {
+          await fetch("/api/settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          
+          if (window.savedApiKeys) {
+            window.savedApiKeys[provider] = keyVal.slice(0, 4) + "..." + keyVal.slice(-4);
+            aiApiKeyInput.value = window.savedApiKeys[provider];
+          }
+        } catch (err) {
+          console.error("Failed to save API key to server:", err);
+        }
+      }
+    });
+  }
+
+  if (sdUrlInput) {
+    sdUrlInput.addEventListener("change", async () => {
+      localStorage.setItem(STORAGE_KEY_SD_URL, sdUrlInput.value.trim());
       try {
         await fetch("/api/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ sd_webui_url: sdUrlInput.value.trim() })
         });
-        
-        if (window.savedApiKeys) {
-          window.savedApiKeys[provider] = keyVal.slice(0, 4) + "..." + keyVal.slice(-4);
-          aiApiKeyInput.value = window.savedApiKeys[provider];
-        }
       } catch (err) {
-        console.error("Failed to save API key to server:", err);
+        console.error("Failed to save SD URL to server:", err);
       }
-    }
-  });
-  sdUrlInput.addEventListener("change", async () => {
-    localStorage.setItem(STORAGE_KEY_SD_URL, sdUrlInput.value.trim());
-    try {
-      await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sd_webui_url: sdUrlInput.value.trim() })
-      });
-    } catch (err) {
-      console.error("Failed to save SD URL to server:", err);
-    }
-  });
+    });
+  }
 
   if (selectGenerationEngine) {
     selectGenerationEngine.addEventListener("change", async () => {
@@ -380,45 +388,53 @@ function setupEventListeners() {
   });
 
   // Action Buttons
-  startBtn.addEventListener("click", () => startImprovementLoop());
-  stopBtn.addEventListener("click", async () => {
-    updateProgressStatus("停止リクエストを送信しました。現在のステップの完了を待っています...", "warning");
-    stopBtn.disabled = true;
-    try {
-      await fetch("/api/session/stop", { method: "POST" });
-    } catch (err) {
-      console.error("Failed to stop session:", err);
-    }
-  });
-
-  testConnectionBtn.addEventListener("click", async () => {
-    testConnectionBtn.disabled = true;
-    testConnectionBtn.innerHTML = '<span class="material-icons-round loader-spinner"></span> 接続確認中...';
-    await fetchGenerationResources();
-    testConnectionBtn.disabled = false;
-    testConnectionBtn.innerHTML = '<span class="material-icons-round">sync</span> 接続確認';
-  });
-
-  clearHistoryBtn.addEventListener("click", async () => {
-    if (confirm("これまでの生成履歴を全て削除しますか？")) {
-      // サーバー側の履歴も削除
+  if (startBtn) startBtn.addEventListener("click", () => startImprovementLoop());
+  if (stopBtn) {
+    stopBtn.addEventListener("click", async () => {
+      updateProgressStatus("停止リクエストを送信しました。現在のステップの完了を待っています...", "warning");
+      stopBtn.disabled = true;
       try {
-        await fetch("/api/history", { method: "DELETE" });
+        await fetch("/api/session/stop", { method: "POST" });
       } catch (err) {
-        console.error("Failed to delete server history:", err);
+        console.error("Failed to stop session:", err);
       }
-      timelineGrid.innerHTML = "";
-      timelineGrid.appendChild(emptyState);
-      emptyState.classList.remove("hidden");
-      
-      // ギャラリー側もクリア
-      if (galleryGrid && galleryEmptyState) {
-        galleryGrid.innerHTML = "";
-        galleryGrid.appendChild(galleryEmptyState);
-        galleryEmptyState.classList.remove("hidden");
+    });
+  }
+
+  if (testConnectionBtn) {
+    testConnectionBtn.addEventListener("click", async () => {
+      testConnectionBtn.disabled = true;
+      testConnectionBtn.innerHTML = '<span class="material-icons-round loader-spinner"></span> 接続確認中...';
+      await fetchGenerationResources();
+      testConnectionBtn.disabled = false;
+      testConnectionBtn.innerHTML = '<span class="material-icons-round">sync</span> 接続確認';
+    });
+  }
+
+  if (clearHistoryBtn) {
+    clearHistoryBtn.addEventListener("click", async () => {
+      if (confirm("これまでの生成履歴を全て削除しますか？")) {
+        try {
+          await fetch("/api/history", { method: "DELETE" });
+        } catch (err) {
+          console.error("Failed to delete server history:", err);
+        }
+        if (timelineGrid) {
+          timelineGrid.innerHTML = "";
+          if (emptyState) {
+            timelineGrid.appendChild(emptyState);
+            emptyState.classList.remove("hidden");
+          }
+        }
+        
+        if (galleryGrid && galleryEmptyState) {
+          galleryGrid.innerHTML = "";
+          galleryGrid.appendChild(galleryEmptyState);
+          galleryEmptyState.classList.remove("hidden");
+        }
       }
-    }
-  });
+    });
+  }
 
   // Hires. fix Event Listeners
   if (hrEnabledCheckbox) {
@@ -818,7 +834,7 @@ async function fetchGenerationResources() {
 
 // Check Stable Diffusion WebUI Connection & Fetch Resources
 async function checkSdConnection() {
-  const sdUrl = sdUrlInput.value.trim();
+  const sdUrl = sdUrlInput ? sdUrlInput.value.trim() : "http://127.0.0.1:7860";
   updateSdStatus(false, "接続確認中...");
 
   try {
@@ -845,7 +861,7 @@ async function checkSdConnection() {
 
 // Check ComfyUI Connection & Fetch Resources
 async function checkComfyConnection() {
-  const comfyUrl = comfyUrlInput.value.trim();
+  const comfyUrl = comfyUrlInput ? comfyUrlInput.value.trim() : "http://127.0.0.1:8188";
   updateSdStatus(false, "ComfyUI 接続確認中...");
 
   try {
@@ -899,7 +915,7 @@ async function fetchSdResources(sdUrl) {
     const optionsRes = await fetch("/api/sd/options", { headers: { "x-sd-url": sdUrl } });
     if (optionsRes.ok) {
       const options = await optionsRes.json();
-      activeCheckpointText.textContent = options.sd_model_checkpoint || "未設定";
+      if (activeCheckpointText) activeCheckpointText.textContent = options.sd_model_checkpoint || "未設定";
       
       // Forge Neo の追加モジュール（VAE, Text Encoder）をパース
       let appliedVae = options.sd_vae || "自動選択";
@@ -913,7 +929,7 @@ async function fetchSdResources(sdUrl) {
           }
         });
       }
-      activeVaeText.textContent = appliedVae;
+      if (activeVaeText) activeVaeText.textContent = appliedVae;
 
       const activeTeText = document.getElementById("active-text-encoder");
       if (activeTeText) {
@@ -997,7 +1013,7 @@ async function fetchSdResources(sdUrl) {
 async function fetchComfyResources(comfyUrl) {
   try {
     renderResourceList(checkpointsList, activeCheckpoints, "checkpoint");
-    activeCheckpointText.textContent = activeCheckpoints[0] || "未設定";
+    if (activeCheckpointText) activeCheckpointText.textContent = activeCheckpoints[0] || "未設定";
 
     const res = await fetch("/api/comfy/resources", {
       method: "POST",
@@ -1011,7 +1027,7 @@ async function fetchComfyResources(comfyUrl) {
       activeVaes = resources.vaes || [];
       if (activeVaes.length === 0) activeVaes = ["Automatic"];
       renderResourceList(vaesList, activeVaes, "vae");
-      activeVaeText.textContent = activeVaes[0] || "未選択";
+      if (activeVaeText) activeVaeText.textContent = activeVaes[0] || "未選択";
 
       activeTextEncoders = resources.textEncoders || [];
       if (activeTextEncoders.length === 0) activeTextEncoders = ["Automatic"];
@@ -1059,6 +1075,7 @@ function updateManualSelectOptions(selectEl, list, defaultText) {
 }
 
 function renderResourceList(container, list, type) {
+  if (!container) return;
   container.innerHTML = "";
   if (list.length === 0) {
     container.innerHTML = `<p class="loading-placeholder">利用可能な${type}はありません。</p>`;
@@ -1100,12 +1117,12 @@ function renderResourceList(container, list, type) {
 }
 
 function clearResourceLists() {
-  checkpointsList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
-  vaesList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
-  textEncodersList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
-  lorasList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
-  activeCheckpointText.textContent = "未接続";
-  activeVaeText.textContent = "未接続";
+  if (checkpointsList) checkpointsList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
+  if (vaesList) vaesList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
+  if (textEncodersList) textEncodersList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
+  if (lorasList) lorasList.innerHTML = `<p class="loading-placeholder">接続後に表示されます</p>`;
+  if (activeCheckpointText) activeCheckpointText.textContent = "未接続";
+  if (activeVaeText) activeVaeText.textContent = "未接続";
   const activeTeText = document.getElementById("active-text-encoder");
   if (activeTeText) activeTeText.textContent = "未接続";
   const activeClipSkipText = document.getElementById("active-clip-skip");
