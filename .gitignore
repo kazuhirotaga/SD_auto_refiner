@@ -1,0 +1,16 @@
+# Dependency directories
+node_modules/
+
+# Local configuration and keys (contains private API keys and pCloud credentials)
+settings.json
+.env
+
+# Generated application history data and images (private data)
+data/
+
+# Deployment tarball packages
+app_deploy.tar.gz
+
+# OS generated files
+.DS_Store
+Thumbs.db

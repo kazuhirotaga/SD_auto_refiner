@@ -1,0 +1,96 @@
+{
+  "positive_categories": [
+    {
+      "name": "画質・コアタグ (Quality Core)",
+      "tags": [
+        {"tag": "masterpiece", "description": "傑作。最高度の完成度を促す"},
+        {"tag": "best quality", "description": "最高品質"},
+        {"tag": "high quality", "description": "高品質"},
+        {"tag": "award winning", "description": "受賞レベルの品質"}
+      ]
+    },
+    {
+      "name": "詳細度・描き込み (Details)",
+      "tags": [
+        {"tag": "ultra detailed", "description": "超微細な描き込み"},
+        {"tag": "extremely detailed", "description": "極めて詳細なディテール"},
+        {"tag": "intricate details", "description": "複雑で精巧な詳細"},
+        {"tag": "sharp focus", "description": "ピントがくっきりした質感"},
+        {"tag": "highres", "description": "高解像感のテクスチャ"}
+      ]
+    },
+    {
+      "name": "ライティング (Lighting)",
+      "tags": [
+        {"tag": "cinematic lighting", "description": "映画のようなドラマチックな照明"},
+        {"tag": "studio lighting", "description": "スタジオ撮影風の整った照明"},
+        {"tag": "volumetric lighting", "description": "光の筋や空気感を表現する光線"},
+        {"tag": "dramatic lighting", "description": "陰影の強い劇的な光"},
+        {"tag": "rim lighting", "description": "輪郭を際立たせる逆光照明"}
+      ]
+    },
+    {
+      "name": "レンダリング・質感 (Rendering)",
+      "tags": [
+        {"tag": "photorealistic", "description": "写真のようなリアルさ"},
+        {"tag": "hyperrealistic", "description": "超写実的な表現"},
+        {"tag": "octane render", "description": "Octaneレンダー風の美しい3D質感"},
+        {"tag": "unreal engine 5", "description": "最新ゲームエンジン風の美麗なグラフィック"},
+        {"tag": "ray tracing", "description": "レイトレーシングによる正確な光の反射"}
+      ]
+    },
+    {
+      "name": "解像度 (Resolution)",
+      "tags": [
+        {"tag": "8k resolution", "description": "8K解像度指定"},
+        {"tag": "4k resolution", "description": "4K解像度指定"},
+        {"tag": "uhd", "description": "超高画質 (Ultra High Definition)"}
+      ]
+    },
+    {
+      "name": "アニメ関係 (Anime Style & Art)",
+      "tags": [
+        {"tag": "anime artwork", "description": "アニメ画風を強調"},
+        {"tag": "key visual", "description": "アニメ公式のキービジュアル風"},
+        {"tag": "cel shading", "description": "セル画風のくっきりした影表現"},
+        {"tag": "vibrant colors", "description": "鮮やかで濁りのない色彩表現"},
+        {"tag": "scenic background", "description": "背景のクオリティを高め、叙情的な背景にする"}
+      ]
+    },
+    {
+      "name": "アニメキャラ (Anime Character Details)",
+      "tags": [
+        {"tag": "highly detailed eyes", "description": "瞳の描き込みや光彩を美しく精密にする"},
+        {"tag": "flowing hair", "description": "髪の毛の流れや細かな毛束の動きを表現"},
+        {"tag": "dynamic pose", "description": "生き生きとしたポーズや構図にする"},
+        {"tag": "expressive face", "description": "キャラクターの表情を豊かにする"},
+        {"tag": "detailed clothing", "description": "服のシワや装飾、質感を精細に描き込む"}
+      ]
+    }
+  ],
+  "negative_categories": [
+    {
+      "name": "低品質要素 (Low Quality)",
+      "tags": [
+        {"tag": "worst quality", "description": "最低品質の排除"},
+        {"tag": "low quality", "description": "低品質の排除"},
+        {"tag": "lowres", "description": "低解像度の排除"},
+        {"tag": "blurry", "description": "ボケ・ブレの排除"},
+        {"tag": "jpeg artifacts", "description": "ノイズや圧縮跡の排除"}
+      ]
+    },
+    {
+      "name": "描画エラー (Artifacts & Errors)",
+      "tags": [
+        {"tag": "bad anatomy", "description": "不自然な体格・骨格の排除"},
+        {"tag": "bad hands", "description": "崩れた手の排除"},
+        {"tag": "deformed", "description": "変形・型崩れの排除"},
+        {"tag": "extra limbs", "description": "余分な手足の排除"},
+        {"tag": "mutated", "description": "突然変異・異形の排除"},
+        {"tag": "missing fingers", "description": "指の欠損の排除"},
+        {"tag": "ugly", "description": "醜い描画の排除"},
+        {"tag": "duplicate", "description": "重複した被写体の排除"}
+      ]
+    }
+  ]
+}

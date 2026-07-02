@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PromptCraft Loop - SDプロンプト自動改善ツール</title>
+  <!-- Google Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar / Control Panel -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="material-icons-round logo-icon">auto_awesome</span>
+        <h1>PromptCraft Loop</h1>
+      </div>
+
+      <nav class="sidebar-nav">
+        <!-- Goal Input Section -->
+        <div class="nav-section">
+          <label for="goal-input" class="section-title">
+            <span class="material-icons-round">target</span> 目標イメージ (Target Goal)
+          </label>
+          <textarea id="goal-input" placeholder="例: A futuristic cyberpunk city at night with neon lights, highly detailed, photorealistic style..."></textarea>
+        </div>
+
+        <!-- Reference Image Section (Image-to-Prompt) -->
+        <div class="nav-section">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+            <label class="section-title" style="margin-bottom: 0;">
+              <span class="material-icons-round">image</span> 参考画像を参照する
+            </label>
+            <label class="switch-container">
+              <input type="checkbox" id="ref-image-toggle">
+              <span class="switch-slider"></span>
+            </label>
+          </div>
+          <div id="ref-image-container" class="ref-image-container hidden">
+            <div class="upload-dropzone" id="ref-image-dropzone">
+              <span class="material-icons-round upload-icon">cloud_upload</span>
+              <p class="upload-text">画像をドラッグ＆ドロップ<br>またはクリックして選択</p>
+              <input type="file" id="ref-image-file" accept="image/*" class="hidden">
+            </div>
+            <div class="ref-image-preview-container hidden" id="ref-image-preview-container">
+              <img id="ref-image-preview" src="" alt="Reference Image">
+              <button type="button" class="remove-ref-img-btn" id="remove-ref-img-btn" title="参考画像を削除">
+                <span class="material-icons-round">cancel</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Initial Prompt Section -->
+        <div class="nav-section">
+          <label for="initial-prompt" class="section-title">
+            <span class="material-icons-round">edit_note</span> 初期プロンプト (任意)
+          </label>
+          <textarea id="initial-prompt" placeholder="空欄の場合、AIが目標から最初のプロンプトを自動生成します。"></textarea>
+        </div>
+
+        <!-- Loop Settings -->
+        <div class="nav-section row">
+          <div>
+            <label for="loop-count" class="section-title">
+              <span class="material-icons-round">loop</span> ループ回数
+            </label>
+            <input type="number" id="loop-count" min="1" max="10" value="3">
+          </div>
+          <div>
+            <label for="image-size" class="section-title">
+              <span class="material-icons-round">photo_size_select_large</span> 画像サイズ
+            </label>
+            <select id="image-size">
+              <option value="512x512" selected>512 x 512</option>
+              <option value="768x768">768 x 768</option>
+              <option value="1024x1024">1024 x 1024 (SDXL)</option>
+              <option value="1280x1280">1280 x 1280</option>
+              <option value="512x768">512 x 768 (縦長)</option>
+              <option value="768x512">768 x 512 (横長)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Generation Parameters -->
+        <div class="nav-section">
+          <label class="section-title">
+            <span class="material-icons-round">settings_input_component</span> 生成パラメータ
+          </label>
+          <div class="manual-resource-selects">
+            <div class="input-subgroup" style="display: flex; justify-content: space-between; align-items: center;">
+              <label for="input-cfg-scale" class="sub-label">CFG Scale: <span id="val-cfg-scale">7.5</span></label>
+              <input type="range" id="input-cfg-scale" min="1.0" max="20.0" step="0.5" value="7.5" style="width: 55%;">
+            </div>
+            <div class="input-subgroup" style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+              <label for="input-steps" class="sub-label">Steps: <span id="val-steps">25</span></label>
+              <input type="range" id="input-steps" min="10" max="50" step="1" value="25" style="width: 55%;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual Resource Settings -->
+        <div class="nav-section">
+          <label class="section-title">
+            <span class="material-icons-round">build</span> 手動リソース指定 (任意)
+          </label>
+          <div class="manual-resource-selects">
+            <div class="input-subgroup">
+              <label for="select-checkpoint" class="sub-label">モデル (Checkpoint)</label>
+              <select id="select-checkpoint">
+                <option value="">(現在の適用モデルを使用)</option>
+              </select>
+            </div>
+            <div class="input-subgroup" style="margin-top: 8px;">
+              <label for="select-vae" class="sub-label">VAE</label>
+              <select id="select-vae">
+                <option value="">(自動選択 / プリセット優先)</option>
+              </select>
+            </div>
+             <div class="input-subgroup" style="margin-top: 8px;">
+              <label for="select-text-encoder" class="sub-label">Text Encoder</label>
+              <select id="select-text-encoder">
+                <option value="">(自動選択 / プリセット優先)</option>
+              </select>
+            </div>
+            <div class="input-subgroup" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+              <label for="select-lora" class="sub-label">LoRA 簡易追加</label>
+              <select id="select-lora">
+                <option value="">(LoRAを選択)</option>
+              </select>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px;">
+                <label for="input-lora-weight" class="sub-label" style="font-size:11px;">強度: <span id="val-lora-weight">1.0</span></label>
+                <input type="range" id="input-lora-weight" min="0.0" max="1.5" step="0.05" value="1.0" style="width: 55%; height: 4px; padding: 0;">
+              </div>
+              <button id="add-lora-btn" class="btn btn-secondary btn-sm" style="width: 100%; margin-top: 8px; font-size: 11px; padding: 4px;">
+                <span class="material-icons-round" style="font-size:14px; vertical-align:middle; margin-right: 2px;">add</span> プロンプトに追加
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hires. fix Settings -->
+        <div class="nav-section">
+          <label class="section-title">
+            <span class="material-icons-round">high_quality</span> Hires. fix (高解像度補助)
+          </label>
+          <div class="manual-resource-selects">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <span class="sub-label">有効にする</span>
+              <label class="switch-container">
+                <input type="checkbox" id="hr-enabled">
+                <span class="switch-slider"></span>
+              </label>
+            </div>
+            
+            <div class="hr-dependent-fields hidden" id="hr-dependent-fields">
+              <div class="input-subgroup">
+                <label for="select-hr-upscaler" class="sub-label">アップスケーラー</label>
+                <select id="select-hr-upscaler">
+                  <option value="Latent">Latent</option>
+                  <option value="Latent (antialiased)">Latent (antialiased)</option>
+                  <option value="4x-UltraSharp">4x-UltraSharp</option>
+                </select>
+              </div>
+              <div class="input-subgroup" style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <label for="input-hr-scale" class="sub-label">倍率: <span id="val-hr-scale">1.5</span>x</label>
+                <input type="range" id="input-hr-scale" min="1.0" max="2.0" step="0.1" value="1.5" style="width: 60%;">
+              </div>
+              <div class="input-subgroup" style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <label for="input-hr-denoise" class="sub-label">デノイズ: <span id="val-hr-denoise">0.55</span></label>
+                <input type="range" id="input-hr-denoise" min="0.0" max="1.0" step="0.05" value="0.55" style="width: 60%;">
+              </div>
+              <div class="input-subgroup" style="margin-top: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <label for="input-hr-steps" class="sub-label">ステップ: <span id="val-hr-steps">15</span></label>
+                <input type="range" id="input-hr-steps" min="0" max="30" step="1" value="15" style="width: 60%;">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Area -->
+        <div class="action-buttons">
+          <button id="start-btn" class="btn btn-primary">
+            <span class="material-icons-round">play_arrow</span> ループ開始
+          </button>
+          <button id="stop-btn" class="btn btn-secondary" disabled>
+            <span class="material-icons-round">stop</span> 停止
+          </button>
+        </div>
+      </nav>
+
+      <!-- Connection Status Panel -->
+      <div class="status-panel">
+        <div class="status-item">
+          <span class="status-indicator offline" id="sd-status-dot"></span>
+          <span class="status-label">Stable Diffusion:</span>
+          <span class="status-value" id="sd-status-text">未接続</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workspace Area -->
+    <main class="main-content">
+      <!-- Top Bar with Settings and Resource Accordions -->
+      <header class="top-bar">
+        <div class="tabs">
+          <button class="tab-btn active" data-target="workspace-tab">
+            <span class="material-icons-round">dashboard</span> ワークスペース
+          </button>
+          <button class="tab-btn" data-target="gallery-tab">
+            <span class="material-icons-round">photo_library</span> 画像ギャラリー
+          </button>
+          <button class="tab-btn" data-target="settings-tab">
+            <span class="material-icons-round">settings</span> API・接続設定
+          </button>
+          <button class="tab-btn" data-target="resources-tab">
+            <span class="material-icons-round">source</span> SDリソース管理
+          </button>
+          <button class="tab-btn" data-target="analysis-tab">
+            <span class="material-icons-round">analytics</span> 分析レポート
+          </button>
+        </div>
+      </header>
+
+      <div class="tab-content" id="workspace-tab">
+        <!-- Session Recovery Banner -->
+        <div class="session-recovery-banner hidden" id="session-recovery-banner">
+          <div class="recovery-content">
+            <span class="material-icons-round recovery-icon">restore</span>
+            <div class="recovery-text">
+              <h3>前回のセッションが中断されました</h3>
+              <p id="recovery-detail">ループ <span id="recovery-loop-info">?/?</span> まで完了しています。残りのループを再開できます。</p>
+            </div>
+            <div class="recovery-actions">
+              <button id="resume-session-btn" class="btn btn-primary btn-sm">
+                <span class="material-icons-round">play_arrow</span> 再開
+              </button>
+              <button id="dismiss-session-btn" class="btn btn-secondary btn-sm">
+                <span class="material-icons-round">close</span> 破棄
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Progress Bar & Active Task Info -->
+        <div class="progress-container hidden" id="progress-container">
+          <div class="progress-header">
+            <h3 id="progress-step-title">ジェネレーションを実行中... (0/0)</h3>
+            <span class="loader-spinner"></span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-bar-fill" style="width: 0%"></div>
+          </div>
+          <p id="progress-status-detail" class="status-detail">SD WebUI で画像を生成しています...</p>
+        </div>
+
+        <!-- Dictionary & Quick Tags Area -->
+        <section class="dictionary-section glass-panel">
+          <div class="section-header">
+            <h2><span class="material-icons-round">menu_book</span> 品質向上プロンプト辞書</h2>
+            <p>AIプロンプト改善に優先的に含める「品質向上タグ」を選択します。</p>
+          </div>
+          <div class="dict-categories" id="dict-container">
+            <!-- Dynamic Category Chips loaded here -->
+            <p class="loading-placeholder">辞書を読み込んでいます...</p>
+          </div>
+        </section>
+
+        <!-- Generation Timeline/Grid -->
+        <section class="timeline-section">
+          <div class="section-header">
+            <h2><span class="material-icons-round">history</span> 生成ヒストリー (改善ループ履歴)</h2>
+            <div class="timeline-actions">
+              <button id="clear-history-btn" class="btn-icon" title="履歴をクリア">
+                <span class="material-icons-round">delete_sweep</span>
+              </button>
+            </div>
+          </div>
+          <div class="timeline-grid" id="timeline-grid">
+            <!-- Generation cards will be inserted here dynamically -->
+            <div class="empty-state" id="empty-state">
+              <span class="material-icons-round empty-icon">image_search</span>
+              <h3>履歴がありません</h3>
+              <p>左側の目標を設定し、「ループ開始」を押してプロンプト自動改善ループをスタートしてください。</p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="tab-content hidden" id="settings-tab">
+        <div class="settings-grid">
+          <!-- API Keys Card -->
+          <div class="glass-panel settings-card">
+            <h2><span class="material-icons-round">vpn_key</span> AIプロバイダ設定</h2>
+            <div class="input-group">
+              <label for="ai-provider-select">使用するAIプロバイダ (Vision対応)</label>
+              <select id="ai-provider-select">
+                <option value="gemini" selected>Google Gemini (3.5 Flash)</option>
+                <option value="openai">OpenAI (GPT-5.5)</option>
+                <option value="claude">Anthropic Claude (3.7 Sonnet)</option>
+                <option value="grok">xAI Grok (Grok 4.3)</option>
+              </select>
+            </div>
+
+            <div class="input-group">
+              <label for="ai-api-key">APIキー</label>
+              <input type="password" id="ai-api-key" placeholder="APIキーを入力 (空の場合は.envファイルの値を使用します)">
+              <p class="input-tip">キーはローカルのバックエンドサーバーでのみ処理され、外部に直接送信されることはありません。</p>
+            </div>
+          </div>
+
+          <!-- SD WebUI Connection Card -->
+          <div class="glass-panel settings-card">
+            <h2><span class="material-icons-round">settings_ethernet</span> Stable Diffusion WebUI 接続</h2>
+            <div class="input-group">
+              <label for="sd-url-input">WebUI API URL</label>
+              <input type="text" id="sd-url-input" value="http://127.0.0.1:7860" placeholder="例: http://127.0.0.1:7860">
+              <p class="input-tip">WebUI起動時に <code>--api</code> 引数を付けて起動しておく必要があります。</p>
+            </div>
+            <button id="test-connection-btn" class="btn btn-secondary">
+              <span class="material-icons-round">sync</span> 接続確認
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resources Tab -->
+      <div class="tab-content hidden" id="resources-tab">
+        <div class="resources-layout">
+          <!-- Left Options Panel -->
+          <div class="glass-panel resources-config">
+            <h2><span class="material-icons-round">tune</span> AI連動リソース制御</h2>
+            <div class="toggle-group">
+              <label class="switch-container">
+                <input type="checkbox" id="ai-resource-toggle">
+                <span class="switch-slider"></span>
+              </label>
+              <div class="toggle-text">
+                <h3>AIにVAE・Text Encoderの変更をお任せする</h3>
+                <p>AIが生成画像を分析し、最適と判断したVAEやテキストエンコーダーを自動的に切り替えます（チェックポイント（モデル）自体の変更は行われません）。</p>
+              </div>
+            </div>
+
+            <div class="toggle-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+              <label class="switch-container">
+                <input type="checkbox" id="ai-params-toggle" checked>
+                <span class="switch-slider"></span>
+              </label>
+              <div class="toggle-text">
+                <h3>AIにCFG Scale・Stepsの調整をお任せする</h3>
+                <p>AIが生成画像を分析し、指示への追従度（CFG Scale）や描画の細かさ（Steps）を自動調整します。</p>
+              </div>
+            </div>
+
+            <div class="toggle-group" style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
+              <label class="switch-container">
+                <input type="checkbox" id="ai-hires-toggle" checked>
+                <span class="switch-slider"></span>
+              </label>
+              <div class="toggle-text">
+                <h3>AIにHires. fixの調整をお任せする</h3>
+                <p>AIが精細感を評価し、Hires. fixの有効化やノイズ除去強度（Denoising strength）を自動調整します。</p>
+              </div>
+            </div>
+
+            <div class="current-active-resources">
+              <h3>現在の適用状況</h3>
+              <div class="resource-badge">
+                <span class="label">Checkpoint:</span>
+                <span class="val" id="active-checkpoint">未取得</span>
+              </div>
+              <div class="resource-badge">
+                <span class="label">VAE:</span>
+                <span class="val" id="active-vae">未取得</span>
+              </div>
+              <div class="resource-badge">
+                <span class="label">Text Encoder:</span>
+                <span class="val" id="active-text-encoder">未取得</span>
+              </div>
+              <div class="resource-badge">
+                <span class="label">Clip Skip:</span>
+                <span class="val" id="active-clip-skip">未取得</span>
+              </div>
+              <div class="resource-badge">
+                <span class="label">CFG Scale:</span>
+                <span class="val" id="active-cfg-scale">未取得</span>
+              </div>
+              <div class="resource-badge">
+                <span class="label">Steps:</span>
+                <span class="val" id="active-steps">未取得</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Lists Panel -->
+          <div class="resources-lists">
+            <!-- Checkpoints List -->
+            <div class="glass-panel resource-list-card">
+              <h3><span class="material-icons-round">extension</span> 利用可能なモデル (Checkpoints)</h3>
+              <div class="list-container" id="checkpoints-list">
+                <p class="loading-placeholder">データを読み込んでいます...</p>
+              </div>
+            </div>
+
+            <!-- VAEs List -->
+            <div class="glass-panel resource-list-card">
+              <h3><span class="material-icons-round">palette</span> 利用可能な VAE</h3>
+              <div class="list-container" id="vaes-list">
+                <p class="loading-placeholder">データを読み込んでいます...</p>
+              </div>
+            </div>
+
+            <!-- Text Encoders List -->
+            <div class="glass-panel resource-list-card">
+              <h3><span class="material-icons-round">terminal</span> 利用可能なテキストエンコーダー</h3>
+              <div class="list-container" id="text-encoders-list">
+                <p class="loading-placeholder">データを読み込んでいます...</p>
+              </div>
+            </div>
+
+            <!-- LoRAs List -->
+            <div class="glass-panel resource-list-card">
+              <h3><span class="material-icons-round">favorite</span> 利用可能な LoRA</h3>
+              <div class="list-container" id="loras-list">
+                <p class="loading-placeholder">データを読み込んでいます...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Gallery Tab -->
+      <div class="tab-content hidden" id="gallery-tab">
+        <section class="timeline-section glass-panel" style="border: none; background: transparent; padding: 0;">
+          <div class="section-header" style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+              <h2><span class="material-icons-round">photo_library</span> 生成画像ギャラリー & メタデータ一覧</h2>
+              <p>これまでに生成された画像とパラメータです。表示モードを切り替えて詳細の比較や適用が可能です。</p>
+            </div>
+            <!-- View Mode Switcher -->
+            <div class="view-switcher" style="display: flex; gap: 8px;">
+              <button id="btn-export-csv" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px; border-color: rgba(16, 185, 129, 0.4); color: #34d399;">
+                <span class="material-icons-round" style="font-size:16px; vertical-align: middle; margin-right: 4px;">download</span> CSVエクスポート
+              </button>
+              <button id="btn-view-grid" class="btn btn-secondary btn-sm active" style="padding: 6px 12px; font-size: 12px;">
+                <span class="material-icons-round" style="font-size:16px; vertical-align: middle; margin-right: 4px;">grid_view</span> グリッド
+              </button>
+              <button id="btn-view-list" class="btn btn-secondary btn-sm" style="padding: 6px 12px; font-size: 12px;">
+                <span class="material-icons-round" style="font-size:16px; vertical-align: middle; margin-right: 4px;">list</span> メタデータ一覧
+              </button>
+            </div>
+          </div>
+          
+          <!-- Grid View Container -->
+          <div class="gallery-grid" id="gallery-grid">
+            <!-- Dynamic gallery items loaded here -->
+            <div class="empty-state" id="gallery-empty-state">
+              <span class="material-icons-round empty-icon">photo_library</span>
+              <h3>ギャラリーに画像がありません</h3>
+              <p>ワークスペースで目標を設定し、ループを実行して画像を生成してください。</p>
+            </div>
+          </div>
+
+          <!-- List/Table View Container (Hidden by default) -->
+          <div class="metadata-table-container hidden" id="metadata-table-container" style="margin-top: 16px;">
+            <div class="glass-panel" style="overflow-x: auto; padding: 0; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+              <table class="metadata-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+                <thead>
+                  <tr style="border-bottom: 1px solid var(--border-color); background-color: rgba(255,255,255,0.02);">
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">世代</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">スコア</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">モデル (Checkpoint)</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">CFG</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">Steps</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted);">プロンプト</th>
+                    <th style="padding: 12px 16px; font-weight: 600; color: var(--color-text-muted); text-align: center;">操作</th>
+                  </tr>
+                </thead>
+                <tbody id="metadata-table-body">
+                  <!-- Dynamic rows loaded here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Analysis Tab -->
+      <div class="tab-content hidden" id="analysis-tab">
+        <div class="analysis-container">
+          <!-- Overview Stats Panel -->
+          <div class="glass-panel analysis-stats-row">
+            <div class="stat-box">
+              <span class="material-icons-round stat-icon" style="color: var(--color-primary);">verified</span>
+              <div class="stat-value" id="stats-total-high">0</div>
+              <div class="stat-label">90点以上の高評価作品</div>
+            </div>
+            <div class="stat-box">
+              <span class="material-icons-round stat-icon" style="color: var(--color-secondary);">emoji_events</span>
+              <div class="stat-value" id="stats-max-score">N/A</div>
+              <div class="stat-label">最高評価スコア</div>
+            </div>
+            <div class="stat-box">
+              <span class="material-icons-round stat-icon" style="color: var(--color-success);">star</span>
+              <div class="stat-value" id="stats-avg-score">N/A</div>
+              <div class="stat-label">高評価群の平均スコア</div>
+            </div>
+          </div>
+
+          <!-- Section title -->
+          <div class="section-header" style="margin-top: 24px; margin-bottom: 16px;">
+            <h2><span class="material-icons-round">lightbulb</span> モデル別パラメータ分析と推奨設定</h2>
+            <p>90点以上を獲得した画像から統計的に導き出した最適なパラメータと頻出キーワードです。</p>
+          </div>
+
+          <!-- List of model analyses -->
+          <div class="analysis-grid" id="analysis-grid">
+            <!-- Dynamic model analysis cards will be loaded here -->
+            <div class="empty-state" id="analysis-empty-state">
+              <span class="material-icons-round empty-icon">analytics</span>
+              <h3>分析データが不足しています</h3>
+              <p>AI評価が90点以上の画像履歴がまだありません。ループを実行して高評価を獲得してください。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div class="modal hidden" id="image-modal">
+    <span class="material-icons-round modal-close" id="modal-close">close</span>
+    <div class="modal-content-split">
+      <div class="modal-left">
+        <img id="modal-img" src="" alt="Zoomed view">
+      </div>
+      <div class="modal-right glass-panel">
+        <h3 style="margin-top:0; font-size: 16px; font-weight: 600; display:flex; align-items:center; gap:8px;">
+          <span class="material-icons-round" style="color:var(--color-primary);">info</span> 生成データ詳細
+        </h3>
+        
+        <div class="modal-metadata-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 16px; margin-bottom: 20px;">
+          <div class="meta-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">スコア</div>
+            <div style="font-size: 16px; font-weight: 700; color: var(--color-primary); margin-top: 2px;" id="modal-meta-score">-</div>
+          </div>
+          <div class="meta-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">世代</div>
+            <div style="font-size: 15px; font-weight: 600; margin-top: 2px;" id="modal-meta-loop">-</div>
+          </div>
+          <div class="meta-item" style="grid-column: span 2; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">使用モデル (Checkpoint)</div>
+            <div style="font-size: 12px; font-weight: 500; word-break: break-all; margin-top: 2px;" id="modal-meta-checkpoint">-</div>
+          </div>
+          <div class="meta-item" style="grid-column: span 2; background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">VAE</div>
+            <div style="font-size: 12px; font-weight: 500; word-break: break-all; margin-top: 2px;" id="modal-meta-vae">-</div>
+          </div>
+          <div class="meta-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">CFG Scale</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px;" id="modal-meta-cfg">-</div>
+          </div>
+          <div class="meta-item" style="background: rgba(255,255,255,0.02); padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+            <div style="font-size: 11px; color: var(--color-text-muted);">Steps</div>
+            <div style="font-size: 14px; font-weight: 600; margin-top: 2px;" id="modal-meta-steps">-</div>
+          </div>
+        </div>
+
+        <div class="meta-text-block" style="margin-top: 12px;">
+          <h4 class="sub-title" style="font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--color-text-muted);">ポジティブプロンプト</h4>
+          <div class="meta-text-box" id="modal-prompt-text" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace; max-height: 100px; overflow-y: auto; word-break: break-all; user-select: all;">-</div>
+        </div>
+
+        <div class="meta-text-block" style="margin-top: 12px;">
+          <h4 class="sub-title" style="font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--color-text-muted);">ネガティブプロンプト</h4>
+          <div class="meta-text-box" id="modal-neg-prompt-text" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace; max-height: 80px; overflow-y: auto; word-break: break-all; user-select: all;">-</div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 24px;">
+          <button id="modal-copy-btn" class="btn btn-secondary btn-sm" style="flex: 1; padding: 10px; font-size: 12px;">
+            <span class="material-icons-round" style="font-size:16px; vertical-align:middle; margin-right:4px;">content_copy</span> コピー
+          </button>
+          <button id="modal-apply-btn" class="btn btn-primary btn-sm" style="flex: 1; padding: 10px; font-size: 12px;">
+            <span class="material-icons-round" style="font-size:16px; vertical-align:middle; margin-right:4px;">tune</span> 設定を適用
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
