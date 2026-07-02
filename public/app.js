@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await fetchPromptDictionary();
   
   // Connection and Resource Check
-  await checkSdConnection();
+  await fetchGenerationResources();
 
   // Restore history from server
   await restoreHistoryFromServer();
@@ -201,16 +201,20 @@ async function loadSavedSettings() {
         sdUrlInput.value = localStorage.getItem(STORAGE_KEY_SD_URL);
       }
 
-      if (settings.comfy_api_url) {
-        comfyUrlInput.value = settings.comfy_api_url;
-      } else if (localStorage.getItem(STORAGE_KEY_COMFY_URL)) {
-        comfyUrlInput.value = localStorage.getItem(STORAGE_KEY_COMFY_URL);
+      if (comfyUrlInput) {
+        if (settings.comfy_api_url) {
+          comfyUrlInput.value = settings.comfy_api_url;
+        } else if (localStorage.getItem(STORAGE_KEY_COMFY_URL)) {
+          comfyUrlInput.value = localStorage.getItem(STORAGE_KEY_COMFY_URL);
+        }
       }
 
-      if (settings.generation_engine) {
-        selectGenerationEngine.value = settings.generation_engine;
-      } else if (localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE)) {
-        selectGenerationEngine.value = localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE);
+      if (selectGenerationEngine) {
+        if (settings.generation_engine) {
+          selectGenerationEngine.value = settings.generation_engine;
+        } else if (localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE)) {
+          selectGenerationEngine.value = localStorage.getItem(STORAGE_KEY_GENERATION_ENGINE);
+        }
       }
 
       const provider = aiProviderSelect.value;
