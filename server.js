@@ -1054,7 +1054,9 @@ function modifyComfyWorkflow(workflow, params) {
     }
   }
 
-  if (checkpointLoaderId) {
+  const isAnimaModel = checkpoint && checkpoint.toLowerCase().includes("anima");
+
+  if (checkpointLoaderId && !isAnimaModel) {
     for (const [id, node] of Object.entries(modified)) {
       if (node.inputs) {
         for (const [inputKey, inputValue] of Object.entries(node.inputs)) {
