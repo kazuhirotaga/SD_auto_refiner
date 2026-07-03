@@ -1920,7 +1920,7 @@ async function openDetailModalById(id) {
     if (!entry) return;
 
     // Bind Image
-    modalImg.src = entry.imageUrl;
+    modalImg.src = `/api/history/image/${entry.id}`;
 
     // Bind Metadata Labels
     if (modalMetaScore) modalMetaScore.textContent = entry.score !== null && entry.score !== undefined ? `${entry.score}点` : "未評価";
