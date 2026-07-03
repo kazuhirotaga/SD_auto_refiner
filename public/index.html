@@ -127,6 +127,35 @@
                 <option value="">(自動選択 / プリセット優先)</option>
               </select>
             </div>
+            <div class="input-subgroup" style="margin-top: 8px;">
+              <label for="select-sampler" class="sub-label">サンプラー (Sampler)</label>
+              <select id="select-sampler">
+                <option value="">(自動選択 / プリセット優先)</option>
+                <option value="euler">euler</option>
+                <option value="euler_ancestral">euler_ancestral</option>
+                <option value="heun">heun</option>
+                <option value="dpm_2">dpm_2</option>
+                <option value="dpm_2_ancestral">dpm_2_ancestral</option>
+                <option value="lms">lms</option>
+                <option value="dpmpp_2m">dpmpp_2m</option>
+                <option value="dpmpp_2m_sde">dpmpp_2m_sde</option>
+                <option value="dpmpp_sde">dpmpp_sde</option>
+                <option value="ddim">ddim</option>
+                <option value="uni_pc">uni_pc</option>
+              </select>
+            </div>
+            <div class="input-subgroup" style="margin-top: 8px;">
+              <label for="select-scheduler" class="sub-label">スケジューラ (Scheduler)</label>
+              <select id="select-scheduler">
+                <option value="">(自動選択 / プリセット優先)</option>
+                <option value="normal">normal</option>
+                <option value="karras">karras</option>
+                <option value="exponential">exponential</option>
+                <option value="sgm_uniform">sgm_uniform</option>
+                <option value="simple">simple</option>
+                <option value="ddim_uniform">ddim_uniform</option>
+              </select>
+            </div>
             <div class="input-subgroup" style="margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
               <label for="select-lora" class="sub-label">LoRA 簡易追加</label>
               <select id="select-lora">

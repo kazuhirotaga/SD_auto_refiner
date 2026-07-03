@@ -796,6 +796,12 @@ async function checkForInterruptedSession() {
         inputSteps.value = session.currentSteps;
         valSteps.textContent = session.currentSteps;
       }
+      if (session.currentSamplerName !== undefined && document.getElementById("select-sampler")) {
+        document.getElementById("select-sampler").value = session.currentSamplerName || "";
+      }
+      if (session.currentScheduler !== undefined && document.getElementById("select-scheduler")) {
+        document.getElementById("select-scheduler").value = session.currentScheduler || "";
+      }
       if (session.useReferenceImage !== undefined && refImageToggle) {
         refImageToggle.checked = session.useReferenceImage;
         refImageToggle.dispatchEvent(new Event("change"));
@@ -1214,6 +1220,8 @@ async function startImprovementLoop(resumeSession = null) {
   const manualCheckpoint = document.getElementById("select-checkpoint").value;
   const manualVae = document.getElementById("select-vae").value;
   const manualTextEncoder = document.getElementById("select-text-encoder").value;
+  const manualSampler = document.getElementById("select-sampler") ? document.getElementById("select-sampler").value : "";
+  const manualScheduler = document.getElementById("select-scheduler") ? document.getElementById("select-scheduler").value : "";
 
   const hrEnabled = hrEnabledCheckbox ? hrEnabledCheckbox.checked : false;
   const hrUpscaler = selectHrUpscaler ? selectHrUpscaler.value : "Latent";
@@ -1263,6 +1271,8 @@ async function startImprovementLoop(resumeSession = null) {
     currentCheckpoint,
     currentVae,
     currentTextEncoder,
+    currentSamplerName: manualSampler || null,
+    currentScheduler: manualScheduler || null,
     currentClipSkip,
     currentCfgScale: inputCfgScale ? parseFloat(inputCfgScale.value) : 7.5,
     currentSteps: inputSteps ? parseInt(inputSteps.value) : 25,

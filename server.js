@@ -1036,7 +1036,7 @@ const DEFAULT_COMFY_WORKFLOW = {
 
 // Helper: Modify ComfyUI Workflow JSON dynamically based on loop parameter refinements
 function modifyComfyWorkflow(workflow, params) {
-  const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint, suggested_nodes } = params;
+  const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint, suggested_nodes, sampler_name, scheduler } = params;
   const modified = JSON.parse(JSON.stringify(workflow));
 
   // --- Auto-reroute CLIPLoader / VAELoader connections to CheckpointLoader ---
@@ -1126,6 +1126,12 @@ function modifyComfyWorkflow(workflow, params) {
     ksampler.inputs.steps = steps || 20;
     ksampler.inputs.cfg = cfg_scale || 7.0;
     ksampler.inputs.seed = seed && seed !== -1 ? seed : Math.floor(Math.random() * 1000000000);
+    if (sampler_name) {
+      ksampler.inputs.sampler_name = sampler_name;
+    }
+    if (scheduler) {
+      ksampler.inputs.scheduler = scheduler;
+    }
   }
 
   let cleanPrompt = prompt;
@@ -1683,6 +1689,8 @@ async function runBackgroundOptimizationLoop() {
     let currentClipSkip = activeJob.currentClipSkip;
     let currentCfgScale = activeJob.currentCfgScale;
     let currentSteps = activeJob.currentSteps;
+    let currentSamplerName = activeJob.currentSamplerName;
+    let currentScheduler = activeJob.currentScheduler;
     
     let hrEnabled = activeJob.hrEnabled;
     let hrUpscaler = activeJob.hrUpscaler;
@@ -1756,6 +1764,8 @@ async function runBackgroundOptimizationLoop() {
             height,
             steps: currentSteps,
             cfg_scale: currentCfgScale,
+            sampler_name: currentSamplerName,
+            scheduler: currentScheduler,
             seed: -1,
             suggested_nodes: activeJob.suggestedNodes
           });
@@ -1994,6 +2004,8 @@ app.post("/api/session/start", (req, res) => {
     currentCheckpoint,
     currentVae,
     currentTextEncoder,
+    currentSamplerName,
+    currentScheduler,
     currentCfgScale,
     currentSteps,
     hrEnabled,
@@ -2028,6 +2040,8 @@ app.post("/api/session/start", (req, res) => {
     currentCheckpoint: currentCheckpoint || null,
     currentVae: currentVae || null,
     currentTextEncoder: currentTextEncoder || null,
+    currentSamplerName: currentSamplerName || null,
+    currentScheduler: currentScheduler || null,
     currentClipSkip: null,
     currentCfgScale: currentCfgScale !== undefined ? parseFloat(currentCfgScale) : 7.5,
     currentSteps: currentSteps !== undefined ? parseInt(currentSteps) : 25,
