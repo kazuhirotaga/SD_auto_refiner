@@ -1039,6 +1039,43 @@ function modifyComfyWorkflow(workflow, params) {
   const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint, suggested_nodes } = params;
   const modified = JSON.parse(JSON.stringify(workflow));
 
+  // --- Auto-reroute CLIPLoader / VAELoader connections to CheckpointLoader ---
+  let checkpointLoaderId = null;
+  let clipLoaderId = null;
+  let vaeLoaderId = null;
+
+  for (const [id, node] of Object.entries(modified)) {
+    if (node.class_type === "CheckpointLoaderSimple") {
+      checkpointLoaderId = id;
+    } else if (node.class_type === "CLIPLoader") {
+      clipLoaderId = id;
+    } else if (node.class_type === "VAELoader") {
+      vaeLoaderId = id;
+    }
+  }
+
+  if (checkpointLoaderId) {
+    for (const [id, node] of Object.entries(modified)) {
+      if (node.inputs) {
+        for (const [inputKey, inputValue] of Object.entries(node.inputs)) {
+          if (Array.isArray(inputValue) && inputValue.length >= 2) {
+            // Re-route CLIP connections from CLIPLoader -> CheckpointLoader (pin 1)
+            if (clipLoaderId && inputValue[0] === clipLoaderId) {
+              node.inputs[inputKey] = [checkpointLoaderId, 1];
+              console.log(`[Reroute] Node ${id} input ${inputKey} redirected from CLIPLoader(${clipLoaderId}) to CheckpointLoader(${checkpointLoaderId}, 1)`);
+            }
+            // Re-route VAE connections from VAELoader -> CheckpointLoader (pin 2)
+            if (vaeLoaderId && inputValue[0] === vaeLoaderId) {
+              node.inputs[inputKey] = [checkpointLoaderId, 2];
+              console.log(`[Reroute] Node ${id} input ${inputKey} redirected from VAELoader(${vaeLoaderId}) to CheckpointLoader(${checkpointLoaderId}, 2)`);
+            }
+          }
+        }
+      }
+    }
+  }
+  // --------------------------------------------------------------------------
+
   let ksamplerId = null;
   let positiveNodeId = null;
   let negativeNodeId = null;
@@ -1046,10 +1083,11 @@ function modifyComfyWorkflow(workflow, params) {
   let modelNodeId = null;
 
   for (const [id, node] of Object.entries(modified)) {
+    console.log(`[Debug] Node ${id} class_type:`, node.class_type);
     // CLIPLoader Correction (Fix missing CLIP model & type for Anima/Illustrious)
     if (node.class_type === "CLIPLoader") {
       node.inputs.clip_name = "qwen_3_06b_base.safetensors";
-      node.inputs.type = "illustrious";
+      node.inputs.type = "qwen_image";
     }
 
     // FaceDetailer Parameter Auto-Correction (Ensure compatibility with Impact Pack V8.x)
@@ -1059,7 +1097,7 @@ function modifyComfyWorkflow(workflow, params) {
       if (node.inputs.sam_bbox_expansion === undefined) node.inputs.sam_bbox_expansion = 0;
       if (node.inputs.cycle === undefined) node.inputs.cycle = 1;
       if (node.inputs.sam_mask_hint_use_negative === undefined) node.inputs.sam_mask_hint_use_negative = "False";
-      if (node.inputs.sam_detection_hint === undefined) node.inputs.sam_detection_hint = "Center-1";
+      if (node.inputs.sam_detection_hint === undefined) node.inputs.sam_detection_hint = "center-1";
       if (node.inputs.drop_size === undefined) node.inputs.drop_size = 10;
       if (node.inputs.sam_dilation === undefined) node.inputs.sam_dilation = 0;
       if (node.inputs.sam_mask_hint_threshold === undefined) node.inputs.sam_mask_hint_threshold = 0.7;
@@ -1079,7 +1117,7 @@ function modifyComfyWorkflow(workflow, params) {
       if (node.inputs.model && Array.isArray(node.inputs.model)) {
         modelNodeId = node.inputs.model[0];
       }
-      break;
+      // Do not break loop to allow processing other nodes (like CLIPLoader & FaceDetailer)
     }
   }
 
@@ -1198,6 +1236,17 @@ function modifyComfyWorkflow(workflow, params) {
 async function generateComfyImage(comfyUrl, workflow, params) {
   const parsedWorkflow = workflow ? JSON.parse(workflow) : DEFAULT_COMFY_WORKFLOW;
   const modifiedWorkflow = modifyComfyWorkflow(parsedWorkflow, params);
+  
+  // Debug output
+  try {
+    const fs = require('fs');
+    fs.writeFileSync('/tmp/last_sent_workflow.json', JSON.stringify(modifiedWorkflow, null, 2), 'utf8');
+    console.log(`[Debug] Workflow dump saved to /tmp/last_sent_workflow.json`);
+    console.log(`[Debug] Node 12 clip_name:`, modifiedWorkflow["12"] ? modifiedWorkflow["12"].inputs.clip_name : "Not found");
+    console.log(`[Debug] Node 8 wildcard:`, modifiedWorkflow["8"] ? modifiedWorkflow["8"].inputs.wildcard : "Not found");
+  } catch (e) {
+    console.error("[Debug] Failed to dump workflow:", e);
+  }
 
   const res = await axios.post(`${comfyUrl}/prompt`, { prompt: modifiedWorkflow }, { timeout: 15000 });
   const promptId = res.data.prompt_id;
