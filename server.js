@@ -9,7 +9,7 @@ const fs = require("fs");
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10100;
 
 // Middleware
 app.use(cors());
@@ -31,6 +31,23 @@ if (fs.existsSync(promptDictPath)) {
     console.error("Error parsing prompt_dictionary.json:", err);
   }
 }
+
+const DYNAMIC_THEME_HINTS = [
+  "夕暮れ時の淡い黄金色の光 (soft warm sunset lighting / golden hour mood)",
+  "サイバーパンクなネオンの輝きと雨の反射 (cyberpunk neon glows, wet street reflections, cyberpunk mood)",
+  "映画のワンシーンのような極めて劇的な逆光と陰影 (cinematic rim lighting, dramatic high-contrast shadows)",
+  "淡く優しい夢のようなパステルカラー調 (pastel color palette, dreamy soft focus, fantasy tone)",
+  "緑豊かな神秘的な森と差し込む木漏れ日 (lush mystical forest background, sunbeams filtering through leaves)",
+  "ヴィンテージ感のあるどこか懐かしいレトロな色調 (vintage retro color grading, nostalgic warm filter)",
+  "未来的な近未来都市のスカイライン (futuristic sci-fi cityscape background, holographic displays)",
+  "夜のきらびやかな都会の夜景と玉ボケ (sparkling night cityscape bokeh background, soft city lights)",
+  "ダイナミックなアクションを感じさせる生き生きとしたひねりのきいたポーズ (dynamic action pose, twisted torso, sense of motion)",
+  "自信に満ちた腕を組んだ立ち姿 (confident standing pose, crossed arms, looking at viewer)",
+  "静寂を感じさせる、少し俯き加減で髪が流れているポーズ (contemplative downward gaze, wind-blown flowing hair, peaceful pose)",
+  "アンティークで豪華な宮殿の内装 (ornate baroque palace interior background, gold accents, crystal chandelier)",
+  "広大な雲海と抜けるような青空 (vast sea of clouds background, bright blue sky, high altitude feel)",
+  "水彩画のような繊細で美しいにじみ表現 (delicate watercolor splashes, artistic paint bleeding texture)"
+];
 
 // Data directory paths
 const DATA_DIR = path.join(__dirname, "data");
@@ -866,6 +883,30 @@ app.delete("/api/history", (req, res) => {
   }
 });
 
+// POST /api/history/star - 履歴エントリのお気に入り状態を更新
+app.post("/api/history/star", (req, res) => {
+  const { id, userStarred } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: "Missing entry ID." });
+  }
+
+  try {
+    const history = readHistory();
+    const entry = history.find(e => e.id === id);
+    if (!entry) {
+      return res.status(404).json({ error: "History entry not found." });
+    }
+
+    entry.userStarred = !!userStarred;
+    writeHistory(history);
+
+    res.json({ message: "History entry star status updated.", id, userStarred: entry.userStarred });
+  } catch (err) {
+    console.error("Error updating star status:", err.message);
+    res.status(500).json({ error: "Failed to update star status.", details: err.message });
+  }
+});
+
 // GET /api/history/image/:id - 画像ファイルを返す
 app.get("/api/history/image/:id", (req, res) => {
   const imagePath = path.join(IMAGES_DIR, `${req.params.id}.png`);
@@ -1345,7 +1386,10 @@ async function refinePromptInternal(payload) {
     availableLoras = [],
     availableUpscalers = [],
     useAISdSelection,
-    useAIParamsSelection
+    useAIParamsSelection,
+    starredHistory = [],
+    recentPrompts = [],
+    dynamicHint
   } = payload;
 
   const resolvedApiKey = apiKey || getEnvApiKey(provider);
@@ -1423,6 +1467,36 @@ Evaluate the attached image. Identify what is missing or incorrect in comparison
 Propose the next prompt, negative prompt, and settings (CLIP skip, CFG scale, Steps, Hires. fix). Select a suitable upscaler from the Available Upscalers list if Hires. fix is recommended.`;
 
   let resolvedUserPrompt = userPrompt;
+
+  // ユーザー嗜好の反映 (User Favorite Preferences)
+  if (Array.isArray(starredHistory) && starredHistory.length > 0) {
+    resolvedUserPrompt += `\n\n### USER FAVORITE PREFERENCES (ユーザーの好み)
+以下は、ユーザーがお気に入り（高評価）に登録した過去の画像プロンプトの例です。
+ユーザーはこれらのスタイル、カラー、構図を非常に好んでいます。
+今回の改善において、これらの好みの特徴（似たトーン、スタイル、ポーズの表現など）を適度に取り入れ、ユーザー好みの仕上がりに引き寄せてください。
+${starredHistory.slice(-5).map((e, idx) => `${idx + 1}. Prompt: "${e.prompt}" (Score: ${e.score})`).join("\n")}`;
+  }
+
+  // 直近の重複回避 (Avoid Recent Overlaps)
+  if (Array.isArray(recentPrompts) && recentPrompts.length > 0) {
+    resolvedUserPrompt += `\n\n### RECENT GENERATED PROMPTS (直近のプロンプト履歴)
+以下は、直近のループで生成されたプロンプトです。
+1. "${recentPrompts[recentPrompts.length - 1]}"
+${recentPrompts.length > 1 ? `2. "${recentPrompts[recentPrompts.length - 2]}"` : ""}
+${recentPrompts.length > 2 ? `3. "${recentPrompts[recentPrompts.length - 3]}"` : ""}
+
+これら直近のプロンプトと「ほぼ同一」または「極めて類似した」シチュエーション、色合い、構図、ポーズをそのまま連続して提案することは避けてください。
+プロンプトが単調なループにならないよう、新しいバリエーション、異なるポーズやアクセントを意図的に導入してください。`;
+  }
+
+  // 動的テーマヒントの注入 (Dynamic Inspiration)
+  if (dynamicHint) {
+    resolvedUserPrompt += `\n\n### DYNAMIC VARIETY INSPIRATION (今回のインスピレーション要素)
+今回のプロンプトには、隠し味として以下の要素（ポーズやカラー、背景、ライティング）をテーマに取り入れて、新しいバリエーションの画像を提案してください：
+- テーマ要素: "${dynamicHint}"
+この要素を自然にプロンプトに組み込んで表現を変化させてください。`;
+  }
+
   if (referenceImageBase64) {
     resolvedUserPrompt += `\n\n### REFERENCE IMAGE IS PROVIDED\nAn image has been attached by the user as a style and composition reference.\nCompare the GENERATED IMAGE against this REFERENCE IMAGE. Analyze if the style, mood, color palette, lighting, or overall composition aligns with it.\nYour suggestions for the next iteration should attempt to match the style of the REFERENCE IMAGE while satisfying the TARGET GOAL.`;
   }
@@ -1659,6 +1733,23 @@ async function runBackgroundOptimizationLoop() {
       activeJob.percent = Math.round(((loop - 1) / maxLoops) * 100 + (80 / maxLoops));
       writeSession({ ...activeJob, active: true });
 
+      // 履歴からお気に入りプロンプトと直近のプロンプトをロード
+      let starredHistory = [];
+      let recentPrompts = [];
+      try {
+        const fullHistory = readHistory();
+        starredHistory = fullHistory
+          .filter(e => e.userStarred === true)
+          .map(e => ({ prompt: e.prompt, score: e.score }));
+        recentPrompts = fullHistory.slice(-3).map(e => e.prompt);
+      } catch (historyErr) {
+        console.warn("Could not load history for AI refine feedback:", historyErr.message);
+      }
+
+      // ランダムな動的テーマヒント（インスピレーション）を1つ選択
+      const dynamicHint = DYNAMIC_THEME_HINTS[Math.floor(Math.random() * DYNAMIC_THEME_HINTS.length)];
+      console.log(`Active loop dynamic variety hint: "${dynamicHint}"`);
+
       let evaluationResult = null;
       try {
         evaluationResult = await refinePromptInternal({
@@ -1676,7 +1767,10 @@ async function runBackgroundOptimizationLoop() {
           availableLoras,
           availableUpscalers,
           useAISdSelection: activeJob.useAISdSelection,
-          useAIParamsSelection: activeJob.useAIParamsSelection
+          useAIParamsSelection: activeJob.useAIParamsSelection,
+          starredHistory,
+          recentPrompts,
+          dynamicHint
         });
       } catch (err) {
         console.error("Background AI Refine Error:", err.message);

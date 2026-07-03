@@ -66,6 +66,30 @@
         {"tag": "expressive face", "description": "キャラクターの表情を豊かにする"},
         {"tag": "detailed clothing", "description": "服のシワや装飾、質感を精細に描き込む"}
       ]
+    },
+    {
+      "name": "色のトーン (Colors & Tones)",
+      "tags": [
+        {"tag": "vibrant colors", "description": "鮮やかで生き生きとした色彩"},
+        {"tag": "pastel tones", "description": "淡く優しいパステル調の色合い"},
+        {"tag": "neon accents", "description": "サイバーパンク風のネオンカラーの差し色"},
+        {"tag": "warm sunset lighting", "description": "夕暮れ時の暖かみのある黄金色の光"},
+        {"tag": "dark moody colors", "description": "ダークで重厚、かつ雰囲気のある色彩"},
+        {"tag": "monochromatic", "description": "特定の色調に統一されたモノクロ・単色表現"},
+        {"tag": "golden hour", "description": "夕日のあたたかい逆光線"}
+      ]
+    },
+    {
+      "name": "構図・ポーズ (Compositions & Poses)",
+      "tags": [
+        {"tag": "dynamic pose", "description": "動きのあるアグレッシブなポーズ"},
+        {"tag": "standing portrait", "description": "全身または半身の立ち姿"},
+        {"tag": "looking back", "description": "振り向きざまのポーズ"},
+        {"tag": "close-up shot", "description": "顔や特定の部位に焦点を当てた接写"},
+        {"tag": "action shot", "description": "戦闘や運動中の躍動的な一瞬"},
+        {"tag": "crossed arms", "description": "腕を組んだ力強く自信に満ちたポーズ"},
+        {"tag": "sitting on ground", "description": "地面や床に座り込んだポーズ"}
+      ]
     }
   ],
   "negative_categories": [

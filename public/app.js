@@ -110,6 +110,8 @@ const modalPromptText = document.getElementById("modal-prompt-text");
 const modalNegPromptText = document.getElementById("modal-neg-prompt-text");
 const modalCopyBtn = document.getElementById("modal-copy-btn");
 const modalApplyBtn = document.getElementById("modal-apply-btn");
+const modalStarBtn = document.getElementById("modal-star-btn");
+const modalStarIcon = document.getElementById("modal-star-icon");
 const modalMetaScore = document.getElementById("modal-meta-score");
 const modalMetaLoop = document.getElementById("modal-meta-loop");
 const modalMetaCheckpoint = document.getElementById("modal-meta-checkpoint");
@@ -1431,7 +1433,7 @@ function updateProgressBar(loop, maxLoops, stepPercentage) {
 
 // Create and Add History Card to UI
 function addHistoryCardToUI(data) {
-  const { id, loopIndex, imageUrl, imageBase64, prompt, negativePrompt, checkpoint, vae, textEncoder, clipSkip, cfgScale, steps, score, positives, improvements, timestamp, hiresFix, suggestedNodes } = data;
+  const { id, loopIndex, imageUrl, imageBase64, prompt, negativePrompt, checkpoint, vae, textEncoder, clipSkip, cfgScale, steps, score, positives, improvements, timestamp, hiresFix, suggestedNodes, userStarred } = data;
 
   if (id && document.querySelector(`[data-history-id="${id}"]`)) {
     return; // Already rendered
@@ -1477,7 +1479,10 @@ function addHistoryCardToUI(data) {
 
   card.innerHTML = `
     <div class="card-image-wrapper">
-      <div class="card-badge">世代 #${loopIndex}${timeStr ? ` <span style="font-size:0.7em;opacity:0.7;margin-left:6px;">${timeStr}</span>` : ""}</div>
+      <div class="card-badge" style="display: flex; justify-content: space-between; align-items: center; width: calc(100% - 16px);">
+        <span>世代 #${loopIndex}${timeStr ? ` <span style="font-size:0.7em;opacity:0.7;margin-left:6px;">${timeStr}</span>` : ""}</span>
+        <span class="card-star-icon material-icons-round" style="cursor: pointer; font-size: 18px; color: ${userStarred ? 'var(--color-primary)' : 'rgba(255,255,255,0.4)'}; transition: color 0.2s;" title="お気に入り">${userStarred ? 'star' : 'star_border'}</span>
+      </div>
       <img src="${imgSrc}" alt="Generated Image Loop ${loopIndex}" loading="lazy">
     </div>
     <div class="card-details">
@@ -1523,6 +1528,23 @@ function addHistoryCardToUI(data) {
       </div>
     </div>
   `;
+
+  // Attach Star Toggle Logic
+  const starIcon = card.querySelector(".card-star-icon");
+  if (starIcon) {
+    starIcon.addEventListener("click", (e) => {
+      e.stopPropagation(); // Prevent modal opening
+      const currentStarred = starIcon.textContent === "star";
+      const newStarred = !currentStarred;
+      
+      // Update UI immediately
+      starIcon.textContent = newStarred ? "star" : "star_border";
+      starIcon.style.color = newStarred ? "var(--color-primary)" : "rgba(255,255,255,0.4)";
+      
+      // Sync to server
+      toggleHistoryStarOnServer(id, newStarred);
+    });
+  }
 
   // Attach Image Click to Lightbox
   const imgElement = card.querySelector(".card-image-wrapper img");
@@ -1948,6 +1970,38 @@ async function openDetailModalById(id) {
       };
     }
 
+    // Setup Star Status in Modal
+    if (modalStarIcon) {
+      const isStarred = !!entry.userStarred;
+      modalStarIcon.textContent = isStarred ? "star" : "star_border";
+      modalStarIcon.style.color = isStarred ? "var(--color-primary)" : "var(--color-text-muted)";
+    }
+
+    // Setup Star Button click handler
+    if (modalStarBtn) {
+      modalStarBtn.onclick = () => {
+        const isStarred = modalStarIcon.textContent === "star";
+        const newStarred = !isStarred;
+        
+        // Update Modal UI
+        modalStarIcon.textContent = newStarred ? "star" : "star_border";
+        modalStarIcon.style.color = newStarred ? "var(--color-primary)" : "var(--color-text-muted)";
+        
+        // Update Timeline Card UI if present
+        const timelineCard = document.querySelector(`[data-history-id="${id}"]`);
+        if (timelineCard) {
+          const cardStarIcon = timelineCard.querySelector(".card-star-icon");
+          if (cardStarIcon) {
+            cardStarIcon.textContent = newStarred ? "star" : "star_border";
+            cardStarIcon.style.color = newStarred ? "var(--color-primary)" : "rgba(255,255,255,0.4)";
+          }
+        }
+        
+        // Sync to server
+        toggleHistoryStarOnServer(id, newStarred);
+      };
+    }
+
     // Show Modal
     imageModal.classList.remove("hidden");
 
@@ -2009,5 +2063,36 @@ async function renderMetadataTable() {
     
   } catch (err) {
     console.error("Failed to render metadata table:", err);
+  }
+}
+
+// Toggle display of engine-specific settings panels
+function toggleEngineSettingsPanel(engine) {
+  const panelSd = document.getElementById("panel-sd-webui-settings");
+  const panelComfy = document.getElementById("panel-comfyui-settings");
+  
+  if (engine === "sd-webui") {
+    if (panelSd) panelSd.classList.remove("hidden");
+    if (panelComfy) panelComfy.classList.add("hidden");
+  } else if (engine === "comfyui") {
+    if (panelSd) panelSd.classList.add("hidden");
+    if (panelComfy) panelComfy.classList.remove("hidden");
+  }
+}
+
+// Toggle History Star Status on Server
+async function toggleHistoryStarOnServer(id, starred) {
+  if (!id) return;
+  try {
+    const res = await fetch("/api/history/star", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, userStarred: starred })
+    });
+    if (!res.ok) {
+      console.error("Failed to update star status on server");
+    }
+  } catch (err) {
+    console.error("Error toggling star on server:", err);
   }
 }
