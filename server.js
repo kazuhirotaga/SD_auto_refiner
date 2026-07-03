@@ -1046,6 +1046,25 @@ function modifyComfyWorkflow(workflow, params) {
   let modelNodeId = null;
 
   for (const [id, node] of Object.entries(modified)) {
+    // CLIPLoader Correction (Fix missing CLIP model & type for Anima/Illustrious)
+    if (node.class_type === "CLIPLoader") {
+      node.inputs.clip_name = "qwen_3_06b_base.safetensors";
+      node.inputs.type = "illustrious";
+    }
+
+    // FaceDetailer Parameter Auto-Correction (Ensure compatibility with Impact Pack V8.x)
+    if (node.class_type === "FaceDetailer" || node.class_type === "FaceDetailerPipe") {
+      if (node.inputs.wildcard === undefined) node.inputs.wildcard = "";
+      if (node.inputs.sam_threshold === undefined) node.inputs.sam_threshold = 0.93;
+      if (node.inputs.sam_bbox_expansion === undefined) node.inputs.sam_bbox_expansion = 0;
+      if (node.inputs.cycle === undefined) node.inputs.cycle = 1;
+      if (node.inputs.sam_mask_hint_use_negative === undefined) node.inputs.sam_mask_hint_use_negative = "False";
+      if (node.inputs.sam_detection_hint === undefined) node.inputs.sam_detection_hint = "Center-1";
+      if (node.inputs.drop_size === undefined) node.inputs.drop_size = 10;
+      if (node.inputs.sam_dilation === undefined) node.inputs.sam_dilation = 0;
+      if (node.inputs.sam_mask_hint_threshold === undefined) node.inputs.sam_mask_hint_threshold = 0.7;
+    }
+
     if (node.class_type === "KSampler") {
       ksamplerId = id;
       if (node.inputs.positive && Array.isArray(node.inputs.positive)) {
