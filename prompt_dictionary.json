@@ -90,6 +90,38 @@
         {"tag": "crossed arms", "description": "腕を組んだ力強く自信に満ちたポーズ"},
         {"tag": "sitting on ground", "description": "地面や床に座り込んだポーズ"}
       ]
+    },
+    {
+      "name": "目の表現 (Eyes & Gaze Details)",
+      "tags": [
+        {"tag": "highly detailed eyes", "description": "瞳の描き込みや光彩を美しく精密にする"},
+        {"tag": "sparkling eyes", "description": "キラキラ輝く宝石のような瞳"},
+        {"tag": "glowing eyes", "description": "暗闇や逆光でぼんやりと光る神秘的な目元"},
+        {"tag": "beautiful detailed pupils", "description": "光彩や瞳孔の細部まで書き込まれた瞳"},
+        {"tag": "perfect lighting in eyes", "description": "光がきれいに映り込んだ完璧なアイハイライト"},
+        {"tag": "heterochromia", "description": "左右で色が異なる魅力的なオッドアイ"},
+        {"tag": "looking at viewer", "description": "こちら（カメラ）を真っ直ぐ見つめる視線"},
+        {"tag": "gazing into distance", "description": "どこか遠くをアンニュイに見つめる視線"},
+        {"tag": "half-closed eyes", "description": "物憂げに半分閉じられた色気のある瞳"},
+        {"tag": "teary eyes", "description": "うるうると涙を浮かべた潤んだ瞳"},
+        {"tag": "tsundere eyes", "description": "ツンデレ気質なクールで魅力的な視線"}
+      ]
+    },
+    {
+      "name": "口・表情の表現 (Mouth & Expressions)",
+      "tags": [
+        {"tag": "parted lips", "description": "少しだけ開いた艶やかで自然な唇"},
+        {"tag": "slight smile", "description": "控えめで上品な微笑み"},
+        {"tag": "gentle smile", "description": "暖かみのある優しい満面の笑顔"},
+        {"tag": "smirk", "description": "いたずらっぽくニヤリとした不敵な笑み"},
+        {"tag": "pouting", "description": "拗ねて頬を膨らませた可愛らしい口元 (ぷく顔)"},
+        {"tag": "open mouth", "description": "口を少し開けて歌っているような、あるいは驚いた表情"},
+        {"tag": "tongue out", "description": "ペロッと舌を出したお茶目で可愛い表情 (てへぺろ)"},
+        {"tag": "expressionless", "description": "クールで神秘的な感情の見えない無表情"},
+        {"tag": "blushing cheeks", "description": "照れて頬をぽっと赤らめた表情"},
+        {"tag": "determined expression", "description": "強い意志や決意を秘めたキリッとした表情"},
+        {"tag": "shy smile", "description": "少し恥ずかしそうにはにかんだ笑顔"}
+      ]
     }
   ],
   "negative_categories": [
