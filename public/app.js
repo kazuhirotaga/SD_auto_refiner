@@ -1033,22 +1033,22 @@ async function fetchComfyResources(comfyUrl) {
     if (res.ok) {
       const resources = await res.json();
       
-      activeVaes = resources.vaes || [];
+      activeVaes = Array.isArray(resources.vaes) ? resources.vaes : [];
       if (activeVaes.length === 0) activeVaes = ["Automatic"];
       renderResourceList(vaesList, activeVaes, "vae");
       if (activeVaeText) activeVaeText.textContent = activeVaes[0] || "未選択";
 
-      activeTextEncoders = resources.textEncoders || [];
+      activeTextEncoders = Array.isArray(resources.textEncoders) ? resources.textEncoders : [];
       if (activeTextEncoders.length === 0) activeTextEncoders = ["Automatic"];
       renderResourceList(textEncodersList, activeTextEncoders, "text-encoder");
       const activeTeText = document.getElementById("active-text-encoder");
       if (activeTeText) activeTeText.textContent = activeTextEncoders[0] || "未選択";
 
-      activeLoras = resources.loras || [];
+      activeLoras = Array.isArray(resources.loras) ? resources.loras : [];
       renderResourceList(lorasList, activeLoras, "lora");
 
-      activeUpscalers = resources.upscalers || [];
-      if (activeUpscalers.length === 0) activeUpscalers = ["Latent"];
+      activeUpscalers = Array.isArray(resources.upscalers) ? resources.upscalers : [];
+      if (activeUpscalers.length === 0) activeUpscalers = ["Latent", "Latent (antialiased)", "4x-UltraSharp"];
       
       const activeClipSkipText = document.getElementById("active-clip-skip");
       if (activeClipSkipText) activeClipSkipText.textContent = "N/A (ComfyUI)";

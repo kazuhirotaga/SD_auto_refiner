@@ -789,10 +789,12 @@ app.post("/api/comfy/resources", async (req, res) => {
     const response = await axios.get(`${targetUrl}/object_info`, { timeout: 8000 });
     const info = response.data;
 
-    const vaes = info.VAELoader ? (info.VAELoader.input.required.vae_name[0] || []) : [];
-    const loras = info.LoraLoader ? (info.LoraLoader.input.required.lora_name[0] || []) : [];
-    const upscalers = info.UpscaleModelLoader ? (info.UpscaleModelLoader.input.required.model_name[0] || []) : [];
-    const textEncoders = info.CLIPLoader ? (info.CLIPLoader.input.required.clip_name[0] || []) : [];
+    const ensureArray = (val) => Array.isArray(val) ? val : [];
+
+    const vaes = info.VAELoader ? ensureArray(info.VAELoader.input.required.vae_name[0]) : [];
+    const loras = info.LoraLoader ? ensureArray(info.LoraLoader.input.required.lora_name[0]) : [];
+    const upscalers = info.UpscaleModelLoader ? ensureArray(info.UpscaleModelLoader.input.required.model_name[0]) : [];
+    const textEncoders = info.CLIPLoader ? ensureArray(info.CLIPLoader.input.required.clip_name[0]) : [];
 
     res.json({
       vaes,
