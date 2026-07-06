@@ -137,6 +137,7 @@ const btnViewGrid = document.getElementById("btn-view-grid");
 const btnViewList = document.getElementById("btn-view-list");
 const metadataTableContainer = document.getElementById("metadata-table-container");
 const metadataTableBody = document.getElementById("metadata-table-body");
+const cleanupHistoryBtn = document.getElementById("cleanup-history-btn");
 
 // Session Recovery DOM
 const sessionRecoveryBanner = document.getElementById("session-recovery-banner");
@@ -452,6 +453,42 @@ function setupEventListeners() {
           galleryGrid.innerHTML = "";
           galleryGrid.appendChild(galleryEmptyState);
           galleryEmptyState.classList.remove("hidden");
+        }
+      }
+    });
+  }
+
+  if (cleanupHistoryBtn) {
+    cleanupHistoryBtn.addEventListener("click", async () => {
+      const thresholdInput = prompt("お気に入り（星マーク）以外の画像のうち、何点未満のものを削除しますか？\n(例: 80点未満を消す場合は 80 と入力)", "80");
+      if (thresholdInput === null) return; // キャンセル
+
+      const threshold = parseInt(thresholdInput.trim());
+      if (isNaN(threshold) || threshold < 1 || threshold > 100) {
+        alert("1から100の間の有効な点数を入力してください。");
+        return;
+      }
+
+      if (confirm(`【警告】お気に入り登録されておらず、かつ「${threshold}点未満」の画像（AI評価エラー画像を含む）をすべて削除します。よろしいですか？`)) {
+        try {
+          cleanupHistoryBtn.disabled = true;
+          cleanupHistoryBtn.innerHTML = '<span class="material-icons-round loader-spinner" style="font-size:14px;"></span> 整理中...';
+
+          const res = await fetch(`/api/history/cleanup?threshold=${threshold}`, { method: "DELETE" });
+          if (res.ok) {
+            const data = await res.json();
+            alert(`整理が完了しました！\n削除された数: ${data.deletedCount}枚\n残った画像数: ${data.remainingCount}枚`);
+            window.location.reload();
+          } else {
+            const err = await res.json();
+            alert(`整理エラー: ${err.error || "Failed to cleanup"}`);
+          }
+        } catch (err) {
+          console.error("Cleanup history error:", err);
+          alert(`エラーが発生しました: ${err.message}`);
+        } finally {
+          cleanupHistoryBtn.disabled = false;
+          cleanupHistoryBtn.innerHTML = '<span class="material-icons-round" style="font-size: 16px;">cleaning_services</span> 整理';
         }
       }
     });

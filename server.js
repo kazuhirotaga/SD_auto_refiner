@@ -914,6 +914,63 @@ app.delete("/api/history", (req, res) => {
   }
 });
 
+// DELETE /api/history/cleanup - 低評価かつお気に入り以外の画像を一括クリーンアップ
+app.delete("/api/history/cleanup", (req, res) => {
+  const scoreThreshold = req.query.threshold !== undefined ? parseInt(req.query.threshold) : 80;
+
+  try {
+    const history = readHistory();
+    
+    // 削除対象エントリと残すエントリに分離
+    const toKeep = [];
+    const toDelete = [];
+
+    history.forEach(entry => {
+      // 判定基準: 
+      // 1. お気に入り (userStarred === true) は「必ず残す」
+      // 2. お気に入りではなく、かつ「スコアが threshold 未満」または「評価に失敗して score が null」の場合は「削除対象」
+      const isStarred = !!entry.userStarred;
+      const scoreVal = entry.score;
+      const isLowScore = scoreVal === null || scoreVal === undefined || scoreVal < scoreThreshold;
+
+      if (!isStarred && isLowScore) {
+        toDelete.push(entry);
+      } else {
+        toKeep.push(entry);
+      }
+    });
+
+    // 削除対象の物理ファイルをディスクから削除
+    toDelete.forEach(entry => {
+      const imagePath = path.join(IMAGES_DIR, `${entry.id}.png`);
+      if (fs.existsSync(imagePath)) {
+        try {
+          fs.unlinkSync(imagePath);
+        } catch (fileErr) {
+          console.warn(`Failed to delete image file ${imagePath}:`, fileErr.message);
+        }
+      }
+    });
+
+    // 新しい履歴リストを保存
+    writeHistory(toKeep);
+
+    // バックアップを非同期実行
+    triggerPcloudBackup();
+
+    res.json({
+      message: "Cleanup completed successfully.",
+      deletedCount: toDelete.length,
+      remainingCount: toKeep.length,
+      threshold: scoreThreshold
+    });
+
+  } catch (err) {
+    console.error("Error cleaning up history:", err.message);
+    res.status(500).json({ error: "Failed to cleanup history.", details: err.message });
+  }
+});
+
 // POST /api/history/star - 履歴エントリのお気に入り状態を更新
 app.post("/api/history/star", (req, res) => {
   const { id, userStarred } = req.body;

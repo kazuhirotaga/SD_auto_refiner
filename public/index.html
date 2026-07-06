@@ -311,7 +311,10 @@
         <section class="timeline-section">
           <div class="section-header">
             <h2><span class="material-icons-round">history</span> 生成ヒストリー (改善ループ履歴)</h2>
-            <div class="timeline-actions">
+            <div class="timeline-actions" style="display: flex; gap: 8px; align-items: center;">
+              <button id="cleanup-history-btn" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 4px 8px; display: inline-flex; align-items: center; gap: 2px; border-color: rgba(239, 68, 68, 0.3); color: #f87171; background: rgba(239, 68, 68, 0.05);" title="低評価・未保存の画像をクリーンアップ">
+                <span class="material-icons-round" style="font-size: 16px;">cleaning_services</span> 整理
+              </button>
               <button id="clear-history-btn" class="btn-icon" title="履歴をクリア">
                 <span class="material-icons-round">delete_sweep</span>
               </button>
