@@ -1947,15 +1947,21 @@ async function openDetailModalById(id) {
     if (modalMetaNodes) {
       modalMetaNodes.innerHTML = "";
       const nodes = entry.suggestedNodes;
-      if (nodes && (nodes.face_detailer || nodes.controlnet || nodes.upscaler)) {
+      if (nodes && (nodes.face_detailer || nodes.hand_detailer || nodes.hires_fix || nodes.controlnet || nodes.upscaler)) {
         if (nodes.face_detailer) {
-          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #f43f5e; color: #f43f5e; background: rgba(244, 63, 94, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">face</span>Face Detailer: ON</span>`;
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #f43f5e; color: #f43f5e; background: rgba(244, 63, 94, 0.05); font-size:11px; padding: 2px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px;"><span class="material-icons-round" style="font-size:12px;">face</span>Face: ON</span>`;
+        }
+        if (nodes.hand_detailer) {
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #fbbf24; color: #fbbf24; background: rgba(251, 191, 36, 0.05); font-size:11px; padding: 2px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px;"><span class="material-icons-round" style="font-size:12px;">front_hand</span>Hand: ON</span>`;
+        }
+        if (nodes.hires_fix) {
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #8b5cf6; color: #8b5cf6; background: rgba(139, 92, 246, 0.05); font-size:11px; padding: 2px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px;"><span class="material-icons-round" style="font-size:12px;">high_quality</span>Hires: ON</span>`;
         }
         if (nodes.controlnet) {
-          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">link</span>ControlNet: ON</span>`;
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.05); font-size:11px; padding: 2px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px;"><span class="material-icons-round" style="font-size:12px;">link</span>ControlNet: ON</span>`;
         }
         if (nodes.upscaler) {
-          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05); font-size:11px;"><span class="material-icons-round" style="font-size:12px;vertical-align:middle;margin-right:2px;">grid_view</span>Upscaler: ON</span>`;
+          modalMetaNodes.innerHTML += `<span class="meta-pill" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05); font-size:11px; padding: 2px 6px; border: 1px solid; border-radius: 4px; display: inline-flex; align-items: center; gap: 2px; margin-right: 4px;"><span class="material-icons-round" style="font-size:12px;">grid_view</span>Upscaler: ON</span>`;
         }
       } else {
         modalMetaNodes.innerHTML = `<span style="font-size: 11px; color: var(--color-text-muted);">追加ノードなし / Bypass</span>`;

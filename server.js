@@ -1294,10 +1294,24 @@ function modifyComfyWorkflow(workflow, params) {
       const cls = (node.class_type || "").toLowerCase();
       const title = (node._meta && node._meta.title || "").toLowerCase();
 
-      // 1. Face Detailer
-      if (cls.includes("facedetailer") || cls.includes("adetailer") || title.includes("face") || title.includes("detailer")) {
-        if (suggested_nodes.face_detailer !== undefined) {
-          node.mode = suggested_nodes.face_detailer ? 0 : 4;
+      // 1. Face Detailer / Hand Detailer Classification
+      if (cls.includes("facedetailer") || cls.includes("adetailer") || title.includes("detailer")) {
+        // Hand Detailer 判定: タイトルか、検出モデルの入力名に 'hand' が含まれる場合
+        const isHand = title.includes("hand") || 
+                      (node.inputs && node.inputs.bbox_detector && 
+                       modified[node.inputs.bbox_detector[0]] && 
+                       (modified[node.inputs.bbox_detector[0]].inputs.model_name || "").toLowerCase().includes("hand"));
+        
+        if (isHand) {
+          if (suggested_nodes.hand_detailer !== undefined) {
+            node.mode = suggested_nodes.hand_detailer ? 0 : 4;
+            console.log(`[Bypass] HandDetailer(${id}) mode set to ${node.mode}`);
+          }
+        } else {
+          if (suggested_nodes.face_detailer !== undefined) {
+            node.mode = suggested_nodes.face_detailer ? 0 : 4;
+            console.log(`[Bypass] FaceDetailer(${id}) mode set to ${node.mode}`);
+          }
         }
       }
       // 2. ControlNet
@@ -1306,10 +1320,42 @@ function modifyComfyWorkflow(workflow, params) {
           node.mode = suggested_nodes.controlnet ? 0 : 4;
         }
       }
-      // 3. Upscaler / Highres
-      else if (cls.includes("upscaler") || cls.includes("ultimatesdupscale") || title.includes("upscale") || title.includes("hires")) {
+      // 3. Upscaler (Simple pixel-based scaling nodes)
+      else if (cls.includes("upscaler") || cls.includes("ultimatesdupscale") || title.includes("hires")) {
         if (suggested_nodes.upscaler !== undefined) {
           node.mode = suggested_nodes.upscaler ? 0 : 4;
+        }
+      }
+    }
+
+    // 4. Hires. fix (Two-pass Latent sampling) Auto-Rewiring connection bypass
+    const hiresEnabled = suggested_nodes.hires_fix !== undefined ? suggested_nodes.hires_fix : true;
+    if (!hiresEnabled) {
+      // Hiresが無効の場合：2次サンプリング側のノードをスキップし、1次最終生成画像を最終出力にバイパス配線する
+      let primaryImageSourceId = null;
+      if (modified["14"] && (modified["14"].class_type === "FaceDetailer" || modified["14"].class_type === "FaceDetailerPipe")) {
+        primaryImageSourceId = "14";
+      } else if (modified["8"] && (modified["8"].class_type === "FaceDetailer" || modified["8"].class_type === "FaceDetailerPipe")) {
+        primaryImageSourceId = "8";
+      } else if (modified["6"] && modified["6"].class_type === "VAEDecode") {
+        primaryImageSourceId = "6";
+      }
+
+      if (primaryImageSourceId) {
+        for (const [id, node] of Object.entries(modified)) {
+          // A. 最終超解像モデル (ImageUpscaleWithModel) の入力元を1次ソースに切り替える
+          if (node.class_type === "ImageUpscaleWithModel" && node.inputs && node.inputs.image) {
+            node.inputs.image = [primaryImageSourceId, 0];
+            console.log(`[Bypass-Hires] Rewired ImageUpscaleWithModel(${id}) input 'image' to Node ${primaryImageSourceId}`);
+          }
+          // B. 画像を保存 (SaveImage) の入力元を1次ソースに切り替える (超解像ノードがバイパスまたは存在しない場合)
+          if (node.class_type === "SaveImage" && node.inputs && node.inputs.images) {
+            const hasUpscaler = Object.values(modified).some(n => n.class_type === "ImageUpscaleWithModel" && n.mode !== 4);
+            if (!hasUpscaler) {
+              node.inputs.images = [primaryImageSourceId, 0];
+              console.log(`[Bypass-Hires] Rewired SaveImage(${id}) input 'images' to Node ${primaryImageSourceId}`);
+            }
+          }
         }
       }
     }
@@ -1559,7 +1605,7 @@ async function refinePromptInternal(payload) {
   const systemPrompt = `You are an expert Stable Diffusion prompt engineer and image critic.
 Your goal is to evaluate the generated image against the user's TARGET GOAL and refine the prompt (both positive and negative) and settings to make the next generation closer to the goal.
 
-You MUST respond in valid JSON format ONLY. Do not include markdown code block syntax (like \`\`\`json) in your raw response text. The JSON must follow this exact structure:
+You MUST respond in valid JSON format ONLY. Do not include markdown code block syntax (like ```json) in your raw response text. The JSON must follow this exact structure:
 {
   "score": <number between 1 and 100 representing how close the image is to the goal>,
   "feedback": {
@@ -1577,6 +1623,11 @@ You MUST respond in valid JSON format ONLY. Do not include markdown code block s
     "denoising_strength": <number, 0.3 to 0.85 depending on how much change is needed>,
     "upscale_by": <number, default 1.5>,
     "steps": <number, 10 to 25>
+  },
+  "suggested_workflow_modifications": {
+    "face_detailer": <boolean (true to enable face repair, false to bypass/disable)>,
+    "hand_detailer": <boolean (true to enable hand repair, false to bypass/disable)>,
+    "hires_fix": <boolean (true to enable latent hires. fix/2nd pass sampling, false to bypass/disable)>
   }
 }
 
@@ -1593,7 +1644,11 @@ Guidance for prompt engineering & SD settings:
    - Adjust denoising_strength (typically 0.3 to 0.85) based on how much change is acceptable (lower values preserve more structure, higher values add more new details but might change the scene).
    - If hires fix is not needed or the image is already sharp and clear, set suggested_hires_fix.enable to false.
 7. Evaluate if the image is over-saturated, has high contrast artifacts (burnt colors), or lacks creative flow. If so, decrease suggested_cfg_scale. If the image completely ignores certain core keywords in the TARGET GOAL, increase suggested_cfg_scale to enforce prompt adherence.
-8. Evaluate if the image details are muddy, noisy, or unfinished. If so, increase suggested_steps. If the image is simple or looks solid, you may keep suggested_steps around 25-30.`;
+8. Evaluate if the image details are muddy, noisy, or unfinished. If so, increase suggested_steps. If the image is simple or looks solid, you may keep suggested_steps around 25-30.
+9. Evaluate if the image has issues that require workflow modifications:
+   - If the face is deformed, low-detail, or needs face-specific inpainting: set suggested_workflow_modifications.face_detailer to true. Otherwise, set it to false to speed up generations.
+   - If the hands/fingers are deformed or missing details: set suggested_workflow_modifications.hand_detailer to true. Otherwise, set it to false.
+   - If the overall image is blurry, lacking texture/details, or requires high-resolution reconstruction (Latent Hires. fix): set suggested_workflow_modifications.hires_fix to true. Otherwise, set it to false.`;
 
   const userPrompt = `### TARGET GOAL
 "${goal}"
@@ -2045,7 +2100,6 @@ async function runBackgroundOptimizationLoop() {
         hrSteps = suggestHr.steps !== undefined ? suggestHr.steps : hrSteps;
       }
 
-      // Update active job parameters
       activeJob.currentPrompt = currentPrompt;
       activeJob.currentNegativePrompt = currentNegativePrompt;
       activeJob.currentCheckpoint = currentCheckpoint;
@@ -2057,7 +2111,25 @@ async function runBackgroundOptimizationLoop() {
       activeJob.hrScale = hrScale;
       activeJob.hrDenoise = hrDenoise;
       activeJob.hrSteps = hrSteps;
-      if (evaluationResult.suggested_nodes) {
+      
+      // Parse suggested workflow intent and update suggestedNodes / hrEnabled
+      if (evaluationResult.suggested_workflow_modifications) {
+        const mods = evaluationResult.suggested_workflow_modifications;
+        if (!activeJob.suggestedNodes) activeJob.suggestedNodes = {};
+        
+        if (mods.face_detailer !== undefined) {
+          activeJob.suggestedNodes.face_detailer = !!mods.face_detailer;
+        }
+        if (mods.hand_detailer !== undefined) {
+          activeJob.suggestedNodes.hand_detailer = !!mods.hand_detailer;
+        }
+        if (mods.hires_fix !== undefined) {
+          activeJob.hrEnabled = !!mods.hires_fix;
+          activeJob.suggestedNodes.hires_fix = !!mods.hires_fix;
+          hrEnabled = !!mods.hires_fix;
+        }
+      } else if (evaluationResult.suggested_nodes) {
+        // Fallback for older format
         activeJob.suggestedNodes = {
           face_detailer: !!evaluationResult.suggested_nodes.face_detailer,
           controlnet: !!evaluationResult.suggested_nodes.controlnet,
@@ -2175,8 +2247,16 @@ app.post("/api/session/start", (req, res) => {
     comfyUrl: comfyUrl || "http://127.0.0.1:8188",
     comfyWorkflow: comfyWorkflow || "",
     excludedTags: excludedTags || "",
-    suggestedNodes: {
+    suggestedNodes: req.body.suggestedNodes ? {
+      face_detailer: !!req.body.suggestedNodes.face_detailer,
+      hand_detailer: !!req.body.suggestedNodes.hand_detailer,
+      hires_fix: !!req.body.suggestedNodes.hires_fix,
+      controlnet: !!req.body.suggestedNodes.controlnet,
+      upscaler: !!req.body.suggestedNodes.upscaler
+    } : {
       face_detailer: false,
+      hand_detailer: false,
+      hires_fix: false,
       controlnet: false,
       upscaler: false
     }
