@@ -1944,12 +1944,12 @@ function saveHistoryInternal(data) {
 // Helper to trigger pcloud backup using rclone
 function triggerPcloudBackup() {
   const { exec } = require("child_process");
-  exec("rclone copy /root/sd-prompt-refiner/data pcloud:/sd-prompt-refiner-data", (err, stdout, stderr) => {
+  exec("rclone copy /root/sd-prompt-refiner/data gdrive:/sd-prompt-refiner-data", (err, stdout, stderr) => {
     if (err) {
-      console.error("pCloud auto-backup failed:", err.message);
+      console.error("Google Drive auto-backup failed:", err.message);
       return;
     }
-    console.log("pCloud auto-backup completed successfully.");
+    console.log("Google Drive auto-backup completed successfully.");
   });
 }
 
