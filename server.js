@@ -1634,6 +1634,11 @@ If any of these keywords are present in the current prompt or negative prompt, y
     throw new Error("Invalid AI Provider specified.");
   }
 
+  let cleanedText = aiResponseText.trim();
+  if (cleanedText.startsWith("```")) {
+    cleanedText = cleanedText.replace(/^```json\s*/i, "").replace(/```$/, "");
+  }
+
   let parsedResult = JSON.parse(cleanedText);
 
   // 強制サニタイズ処理 (Force Sanitize Excluded Tags on internal loop response)
