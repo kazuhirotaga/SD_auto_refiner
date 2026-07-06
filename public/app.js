@@ -127,6 +127,7 @@ const xShareTextarea = document.getElementById("x-share-textarea");
 const xShareCopyImgBtn = document.getElementById("x-share-copy-img-btn");
 const xShareGoBtn = document.getElementById("x-share-go-btn");
 const modalXShareBtn = document.getElementById("modal-x-share-btn");
+let activeModalEntryId = null;
 const modalMetaCfg = document.getElementById("modal-meta-cfg");
 const modalMetaSteps = document.getElementById("modal-meta-steps");
 const modalMetaNodes = document.getElementById("modal-meta-nodes");
