@@ -1109,6 +1109,53 @@ function modifyComfyWorkflow(workflow, params) {
   }
   // --------------------------------------------------------------------------
 
+  // --- Auto-Connect (Wired restoration for missing inputs in custom workflows) ---
+  let ksamplerNodeId = null;
+  let vaeDecodeNodeId = null;
+  let saveImageNodeId = null;
+
+  for (const [id, node] of Object.entries(modified)) {
+    const cls = node.class_type;
+    if (cls === "KSampler") ksamplerNodeId = id;
+    else if (cls === "VAEDecode") vaeDecodeNodeId = id;
+    else if (cls === "SaveImage") saveImageNodeId = id;
+  }
+
+  // 1. KSampler -> MODEL
+  if (ksamplerNodeId && modified[ksamplerNodeId]) {
+    const ksampler = modified[ksamplerNodeId];
+    if (!ksampler.inputs.model || !Array.isArray(ksampler.inputs.model)) {
+      if (checkpointLoaderId) {
+        ksampler.inputs.model = [checkpointLoaderId, 0];
+        console.log(`[Auto-Connect] Wired KSampler(${ksamplerNodeId}) MODEL to CheckpointLoader(${checkpointLoaderId}, 0)`);
+      }
+    }
+  }
+
+  // 2. CLIPTextEncode -> CLIP
+  const resolvedClipSource = clipLoaderId ? [clipLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 1] : null);
+  if (resolvedClipSource) {
+    for (const [id, node] of Object.entries(modified)) {
+      if (node.class_type === "CLIPTextEncode") {
+        if (!node.inputs.clip || !Array.isArray(node.inputs.clip)) {
+          node.inputs.clip = resolvedClipSource;
+          console.log(`[Auto-Connect] Wired CLIPTextEncode(${id}) CLIP to node ${resolvedClipSource[0]} (pin ${resolvedClipSource[1]})`);
+        }
+      }
+    }
+  }
+
+  // 3. VAEDecode -> VAE
+  const resolvedVaeSource = vaeLoaderId ? [vaeLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 2] : null);
+  if (vaeDecodeNodeId && modified[vaeDecodeNodeId] && resolvedVaeSource) {
+    const vaeDecode = modified[vaeDecodeNodeId];
+    if (!vaeDecode.inputs.vae || !Array.isArray(vaeDecode.inputs.vae)) {
+      vaeDecode.inputs.vae = resolvedVaeSource;
+      console.log(`[Auto-Connect] Wired VAEDecode(${vaeDecodeNodeId}) VAE to node ${resolvedVaeSource[0]} (pin ${resolvedVaeSource[1]})`);
+    }
+  }
+  // --------------------------------------------------------------------------
+
   let ksamplerId = null;
   let positiveNodeId = null;
   let negativeNodeId = null;
