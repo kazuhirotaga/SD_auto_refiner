@@ -1142,7 +1142,16 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
     }
   }
 
-  const isAnimaModel = checkpoint && checkpoint.toLowerCase().includes("anima");
+  let currentWorkflowModel = null;
+  for (const [id, node] of Object.entries(modified)) {
+    if ((node.class_type === "CheckpointLoaderSimple" || node.class_type === "CheckpointLoader") && node.inputs) {
+      currentWorkflowModel = node.inputs.ckpt_name;
+      break;
+    }
+  }
+
+  const isAnimaModel = (checkpoint && checkpoint.toLowerCase().includes("anima")) ||
+                       (currentWorkflowModel && currentWorkflowModel.toLowerCase().includes("anima"));
 
   if (checkpointLoaderId && !isAnimaModel) {
     for (const [id, node] of Object.entries(modified)) {
