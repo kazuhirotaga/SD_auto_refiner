@@ -1123,7 +1123,7 @@ const DEFAULT_COMFY_WORKFLOW = {
 };
 
 // Helper: Modify ComfyUI Workflow JSON dynamically based on loop parameter refinements
-function modifyComfyWorkflow(workflow, params) {
+function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
   const { prompt, negative_prompt, steps, cfg_scale, width, height, seed, checkpoint, suggested_nodes, sampler_name, scheduler } = params;
   const modified = JSON.parse(JSON.stringify(workflow));
 
@@ -1317,16 +1317,46 @@ function modifyComfyWorkflow(workflow, params) {
     }
   }
 
+  // Helper: Resolve Checkpoint Name case-insensitively
+  const resolveCheckpointName = (name, list) => {
+    if (!name || !Array.isArray(list) || list.length === 0) return name;
+    if (list.includes(name)) return name;
+    const lowerName = name.toLowerCase();
+    for (const available of list) {
+      if (available.toLowerCase() === lowerName) {
+        console.log(`[Model-Fix] Resolved ${name} -> ${available} (Case mismatch fixed)`);
+        return available;
+      }
+    }
+    // 部分一致解決
+    const cleanName = lowerName.replace(/\.safetensors$/, "").replace(/\.ckpt$/, "");
+    for (const available of list) {
+      const lowerAvailable = available.toLowerCase();
+      if (lowerAvailable.includes(cleanName) || cleanName.includes(lowerAvailable.replace(/\.safetensors$/, "").replace(/\.ckpt$/, ""))) {
+        console.log(`[Model-Fix] Resolved ${name} -> ${available} (Partial match resolved)`);
+        return available;
+      }
+    }
+    return name;
+  };
+
   if (checkpoint) {
     let loaderId = null;
     for (const [id, node] of Object.entries(modified)) {
-      if (node.class_type === "CheckpointLoaderSimple") {
+      if (node.class_type === "CheckpointLoaderSimple" || node.class_type === "CheckpointLoader") {
         loaderId = id;
         break;
       }
     }
     if (loaderId && modified[loaderId]) {
-      modified[loaderId].inputs.ckpt_name = checkpoint;
+      modified[loaderId].inputs.ckpt_name = resolveCheckpointName(checkpoint, availableCheckpoints);
+    }
+  } else {
+    // ワークフロー内のデフォルトモデル名の大文字小文字も解決する
+    for (const [id, node] of Object.entries(modified)) {
+      if ((node.class_type === "CheckpointLoaderSimple" || node.class_type === "CheckpointLoader") && node.inputs && node.inputs.ckpt_name) {
+        node.inputs.ckpt_name = resolveCheckpointName(node.inputs.ckpt_name, availableCheckpoints);
+      }
     }
   }
 
@@ -1423,8 +1453,20 @@ function modifyComfyWorkflow(workflow, params) {
 
 // Generate Image using ComfyUI API
 async function generateComfyImage(comfyUrl, workflow, params) {
+  let availableCheckpoints = [];
+  try {
+    const infoRes = await axios.get(`${comfyUrl}/object_info`, { timeout: 8000 });
+    if (infoRes.data && infoRes.data.CheckpointLoaderSimple) {
+      availableCheckpoints = infoRes.data.CheckpointLoaderSimple.input.required.ckpt_name[0] || [];
+    } else if (infoRes.data && infoRes.data.CheckpointLoader) {
+      availableCheckpoints = infoRes.data.CheckpointLoader.input.required.ckpt_name[0] || [];
+    }
+  } catch (err) {
+    console.warn("[Warning] Failed to fetch checkpoints from ComfyUI for case-insensitive check:", err.message);
+  }
+
   const parsedWorkflow = workflow ? JSON.parse(workflow) : DEFAULT_COMFY_WORKFLOW;
-  const modifiedWorkflow = modifyComfyWorkflow(parsedWorkflow, params);
+  const modifiedWorkflow = modifyComfyWorkflow(parsedWorkflow, params, availableCheckpoints);
   
   // Debug output
   try {
