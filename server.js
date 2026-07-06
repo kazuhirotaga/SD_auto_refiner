@@ -2156,6 +2156,76 @@ async function runBackgroundOptimizationLoop() {
   }
 }
 
+// POST /api/ai/tweet-draft - 画像紹介用のX (Twitter) 下書き文をAI生成
+app.post("/api/ai/tweet-draft", async (req, res) => {
+  const { id } = req.body;
+  if (!id) {
+    return res.status(400).json({ error: "Missing history ID." });
+  }
+
+  try {
+    const history = readHistory();
+    const entry = history.find(e => e.id === id);
+    if (!entry) {
+      return res.status(404).json({ error: "History entry not found." });
+    }
+
+    const session = readSession();
+    const provider = session.provider || "gemini";
+    const apiKey = getEnvApiKey(provider);
+
+    if (!apiKey) {
+      return res.status(400).json({ error: `API Key for ${provider} is missing.` });
+    }
+
+    const systemPrompt = `You are an enthusiastic AI artist promoter.
+Your task is to write a catchy, exciting tweet in Japanese to promote this AI-generated artwork.
+Use the following metadata to create the tweet:
+- Target Concept: "${entry.goal || "(Not specified)"}"
+- AI Evaluation Score: ${entry.score !== null && entry.score !== undefined ? entry.score : "N/A"} points
+- Main Prompt words: "${entry.prompt || ""}"
+
+Guidelines:
+1. Keep the tweet under 130 characters.
+2. Write in natural, friendly, and engaging Japanese.
+3. Show excitement and praise the artwork based on the Concept.
+4. Include 2-3 relevant hashtags like #StableDiffusion #AIart #ComfyUI #PromptCraft.
+5. Do NOT output any quotes, markdown block formatting, or conversational prefaces. Output ONLY the plain tweet text.`;
+
+    const userPrompt = `Generate a tweet for this artwork.`;
+    
+    let draftText = "";
+    if (provider === "openai") {
+      draftText = await callOpenAI(apiKey, systemPrompt, userPrompt);
+    } else if (provider === "gemini") {
+      draftText = await callGemini(apiKey, systemPrompt, userPrompt);
+    } else if (provider === "claude") {
+      draftText = await callClaude(apiKey, systemPrompt, userPrompt);
+    } else if (provider === "grok") {
+      draftText = await callGrok(apiKey, systemPrompt, userPrompt);
+    } else {
+      throw new Error("Invalid AI provider");
+    }
+
+    // Clean markdown code blocks if any
+    let cleanedDraft = draftText.trim();
+    if (cleanedDraft.startsWith("```")) {
+      cleanedDraft = cleanedDraft.replace(/^```[a-z]*\s*/i, "").replace(/```$/, "").trim();
+    }
+    
+    // Strip leading/trailing quote characters
+    if (cleanedDraft.startsWith('"') && cleanedDraft.endsWith('"')) {
+      cleanedDraft = cleanedDraft.slice(1, -1).trim();
+    }
+
+    res.json({ draftText: cleanedDraft });
+
+  } catch (err) {
+    console.error("Error generating tweet draft:", err.message);
+    res.status(500).json({ error: "Failed to generate tweet draft.", details: err.message });
+  }
+});
+
 // GET /api/session - セッション状態を返す
 app.get("/api/session", (req, res) => {
   try {

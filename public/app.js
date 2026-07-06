@@ -118,6 +118,15 @@ const modalMetaScore = document.getElementById("modal-meta-score");
 const modalMetaLoop = document.getElementById("modal-meta-loop");
 const modalMetaCheckpoint = document.getElementById("modal-meta-checkpoint");
 const modalMetaVae = document.getElementById("modal-meta-vae");
+
+// X (Twitter) Share Modal DOM
+const xShareModal = document.getElementById("x-share-modal");
+const xShareModalClose = document.getElementById("x-share-modal-close");
+const xSharePreviewImg = document.getElementById("x-share-preview-img");
+const xShareTextarea = document.getElementById("x-share-textarea");
+const xShareCopyImgBtn = document.getElementById("x-share-copy-img-btn");
+const xShareGoBtn = document.getElementById("x-share-go-btn");
+const modalXShareBtn = document.getElementById("modal-x-share-btn");
 const modalMetaCfg = document.getElementById("modal-meta-cfg");
 const modalMetaSteps = document.getElementById("modal-meta-steps");
 const modalMetaNodes = document.getElementById("modal-meta-nodes");
@@ -499,6 +508,64 @@ function setupEventListeners() {
       imageModal.classList.add("hidden");
     }
   });
+
+  // X Share Trigger in Lightbox Modal
+  if (modalXShareBtn) {
+    modalXShareBtn.addEventListener("click", () => {
+      if (activeModalEntryId) {
+        imageModal.classList.add("hidden");
+        openXShareModal(activeModalEntryId);
+      }
+    });
+  }
+
+  // X Share Modal Actions
+  if (xShareModalClose) {
+    xShareModalClose.addEventListener("click", () => xShareModal.classList.add("hidden"));
+  }
+  if (xShareModal) {
+    xShareModal.addEventListener("click", (e) => {
+      if (e.target === xShareModal) xShareModal.classList.add("hidden");
+    });
+  }
+
+  // Image Copy Click
+  if (xShareCopyImgBtn) {
+    xShareCopyImgBtn.addEventListener("click", async () => {
+      if (!activeModalEntryId) return;
+      xShareCopyImgBtn.disabled = true;
+      xShareCopyImgBtn.innerHTML = '<span class="material-icons-round loader-spinner" style="font-size:16px;"></span> コピー中...';
+      
+      const success = await copyImageToClipboard(`/api/history/image/${activeModalEntryId}`);
+      
+      if (success) {
+        xShareCopyImgBtn.innerHTML = '<span class="material-icons-round">done</span> コピー完了！';
+        xShareCopyImgBtn.style.borderColor = "var(--color-success)";
+        xShareCopyImgBtn.style.color = "var(--color-success)";
+      } else {
+        xShareCopyImgBtn.innerHTML = '<span class="material-icons-round">close</span> コピー失敗';
+        xShareCopyImgBtn.style.borderColor = "var(--color-error)";
+        xShareCopyImgBtn.style.color = "var(--color-error)";
+        alert("画像のコピーに失敗しました。画像を右クリックして保存するか、手動でコピーしてください。");
+      }
+      
+      setTimeout(() => {
+         xShareCopyImgBtn.disabled = false;
+         xShareCopyImgBtn.innerHTML = '<span class="material-icons-round">content_copy</span> 画像をコピー';
+         xShareCopyImgBtn.style.borderColor = "";
+         xShareCopyImgBtn.style.color = "";
+      }, 2000);
+    });
+  }
+
+  // Go to X Tweet Intent
+  if (xShareGoBtn) {
+    xShareGoBtn.addEventListener("click", () => {
+      const text = xShareTextarea.value.trim();
+      const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
+      window.open(url, "_blank");
+    });
+  }
 
   // Session Recovery Buttons
   if (resumeSessionBtn) {
@@ -1925,6 +1992,7 @@ function applyModelAnalysisSettings(checkpoint, cfg, steps, positives, negatives
 
 async function openDetailModalById(id) {
   if (!id) return;
+  activeModalEntryId = id;
   try {
     const res = await fetch("/api/history");
     if (!res.ok) return;
@@ -2123,5 +2191,74 @@ async function toggleHistoryStarOnServer(id, starred) {
     }
   } catch (err) {
     console.error("Error toggling star on server:", err);
+  }
+}
+
+// --- X (Twitter) SHARE ASSISTANT LOGIC ---
+async function openXShareModal(id) {
+  if (!id) return;
+  try {
+    // Show modal and set preview
+    xSharePreviewImg.src = `/api/history/image/${id}`;
+    xShareTextarea.value = "AIによる紹介テキストを生成中...";
+    xShareModal.classList.remove("hidden");
+    
+    // Fetch AI draft
+    const res = await fetch("/api/ai/tweet-draft", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      xShareTextarea.value = data.draftText || "";
+    } else {
+      const err = await res.json();
+      xShareTextarea.value = `紹介文の自動生成に失敗しました: ${err.error || "APIエラー"}\n\n自分でテキストを入力して投稿できます！`;
+    }
+  } catch (err) {
+    console.error("X share modal open error:", err);
+    xShareTextarea.value = `紹介文の自動生成に失敗しました: ${err.message}\n\n自分でテキストを入力して投稿できます！`;
+  }
+}
+
+// Helper to copy image blob to clipboard (works on Chrome/Firefox/Safari)
+async function copyImageToClipboard(srcUrl) {
+  try {
+    const response = await fetch(srcUrl);
+    const blob = await response.blob();
+    
+    let pngBlob = blob;
+    if (blob.type !== "image/png") {
+      // Convert non-PNG images to PNG using canvas (required by Clipboard API)
+      pngBlob = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          canvas.toBlob((b) => {
+            if (b) resolve(b);
+            else reject(new Error("Canvas conversion to PNG failed."));
+          }, "image/png");
+        };
+        img.onerror = () => reject(new Error("Image load failed for clipboard copy."));
+        img.src = srcUrl;
+      });
+    }
+
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "image/png": pngBlob
+      })
+    ]);
+    return true;
+  } catch (err) {
+    console.error("Clipboard copy failed:", err);
+    return false;
   }
 }

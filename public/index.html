@@ -656,15 +656,58 @@
           <div class="meta-text-box" id="modal-neg-prompt-text" style="background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 10px; border-radius: var(--radius-sm); font-size: 12px; font-family: monospace; max-height: 80px; overflow-y: auto; word-break: break-all; user-select: all;">-</div>
         </div>
 
-        <div style="display: flex; gap: 10px; margin-top: 24px;">
+        <div style="display: flex; gap: 8px; margin-top: 24px;">
           <button id="modal-star-btn" class="btn btn-secondary btn-sm" style="padding: 10px; font-size: 12px; width: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;" title="お気に入り登録">
             <span class="material-icons-round" id="modal-star-icon" style="font-size:20px; color: var(--color-text-muted);">star_border</span>
+          </button>
+          <button id="modal-x-share-btn" class="btn btn-secondary btn-sm" style="flex: 1; padding: 10px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px; border-color: rgba(29, 161, 242, 0.4); color: #1d9bf0;">
+            <svg style="width: 14px; height: 14px; fill: currentColor;" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Xで共有
           </button>
           <button id="modal-copy-btn" class="btn btn-secondary btn-sm" style="flex: 1; padding: 10px; font-size: 12px;">
             <span class="material-icons-round" style="font-size:16px; vertical-align:middle; margin-right:4px;">content_copy</span> コピー
           </button>
           <button id="modal-apply-btn" class="btn btn-primary btn-sm" style="flex: 1; padding: 10px; font-size: 12px;">
             <span class="material-icons-round" style="font-size:16px; vertical-align:middle; margin-right:4px;">tune</span> 設定を適用
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- X (Twitter) Share Modal -->
+  <div class="modal hidden" id="x-share-modal" style="z-index: 1100;">
+    <span class="material-icons-round modal-close" id="x-share-modal-close">close</span>
+    <div class="modal-content-split" style="max-width: 600px; height: auto; max-height: 90vh;">
+      <div class="modal-left" style="max-height: 250px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.3); border-radius: var(--radius-md); padding: 10px;">
+        <img id="x-share-preview-img" src="" alt="Share preview" style="max-height: 230px; object-fit: contain; border-radius: var(--radius-sm);">
+      </div>
+      <div class="modal-right glass-panel" style="padding: 20px; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <h3 style="margin-top:0; font-size: 16px; font-weight: 600; display:flex; align-items:center; gap:8px;">
+            <svg style="width: 18px; height: 18px; fill: #1d9bf0;" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            X (Twitter) 投稿下書きの確認
+          </h3>
+          <p style="font-size: 11px; color: var(--color-text-muted); margin-bottom: 12px;">AIが自動生成したテキストです。自由に編集して投稿できます。</p>
+          
+          <textarea id="x-share-textarea" style="width: 100%; height: 120px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--color-text); padding: 10px; font-size: 13px; font-family: inherit; resize: none; margin-bottom: 16px;" placeholder="投稿内容を生成中..."></textarea>
+          
+          <div class="share-helper-box" style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.15); border-radius: var(--radius-sm); padding: 12px; font-size: 11px; line-height: 1.5; color: var(--color-text-muted); margin-bottom: 20px;">
+            <div style="font-weight: 600; color: #8b5cf6; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;">
+              <span class="material-icons-round" style="font-size: 14px;">info</span> かんたん画像投稿ガイド
+            </div>
+            1. 「<b>画像をコピー</b>」ボタンを押してクリップボードに保存します。<br>
+            2. 「<b>X（Twitter）を開く</b>」ボタンを押して新規投稿画面に遷移します。<br>
+            3. 投稿入力欄で <b>Ctrl + V</b> を押して画像を貼り付けて投稿してください！
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button id="x-share-copy-img-btn" class="btn btn-secondary" style="flex: 1; padding: 10px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <span class="material-icons-round" style="font-size:16px;">content_copy</span> 画像をコピー
+          </button>
+          <button id="x-share-go-btn" class="btn btn-primary" style="flex: 1; padding: 10px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <span class="material-icons-round" style="font-size:16px;">open_in_new</span> Xを開く
           </button>
         </div>
       </div>
