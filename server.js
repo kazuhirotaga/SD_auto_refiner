@@ -1605,7 +1605,7 @@ async function refinePromptInternal(payload) {
   const systemPrompt = `You are an expert Stable Diffusion prompt engineer and image critic.
 Your goal is to evaluate the generated image against the user's TARGET GOAL and refine the prompt (both positive and negative) and settings to make the next generation closer to the goal.
 
-You MUST respond in valid JSON format ONLY. Do not include markdown code block syntax (like ```json) in your raw response text. The JSON must follow this exact structure:
+You MUST respond in valid JSON format ONLY. Do not include markdown code block syntax (like \`\`\`json) in your raw response text. The JSON must follow this exact structure:
 {
   "score": <number between 1 and 100 representing how close the image is to the goal>,
   "feedback": {
