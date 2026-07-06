@@ -373,7 +373,8 @@ app.post("/api/ai/refine", async (req, res) => {
     referenceImageBase64, // 追加: 参考画像
     selectedQualityTags = [],
     availableLoras = [],
-    availableUpscalers = []
+    availableUpscalers = [],
+    excludedTags
   } = req.body;
 
   // Retrieve API Key (from request or environment variable)
@@ -497,6 +498,30 @@ Propose the next prompt, negative prompt, and settings (CLIP skip, CFG scale, St
       return res.status(500).json({
         error: "AI did not return a valid JSON format.",
         rawResponse: aiResponseText
+      });
+    }
+
+    // Force Sanitize Excluded Tags on API response
+    if (excludedTags && excludedTags.trim() !== "" && parsedResult) {
+      const tagsList = excludedTags.split(",").map(t => t.trim()).filter(t => t.length > 0);
+      tagsList.forEach(tag => {
+        const escapedTag = tag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const regex = new RegExp(`\\b${escapedTag}\\b|${escapedTag}`, 'gi');
+        
+        if (parsedResult.next_prompt) {
+          parsedResult.next_prompt = parsedResult.next_prompt
+            .replace(regex, "")
+            .replace(/,\s*,/g, ",")
+            .replace(/^,|,$/g, "")
+            .trim();
+        }
+        if (parsedResult.next_negative_prompt) {
+          parsedResult.next_negative_prompt = parsedResult.next_negative_prompt
+            .replace(regex, "")
+            .replace(/,\s*,/g, ",")
+            .replace(/^,|,$/g, "")
+            .trim();
+        }
       });
     }
 
@@ -1471,7 +1496,8 @@ async function refinePromptInternal(payload) {
     useAIParamsSelection,
     starredHistory = [],
     recentPrompts = [],
-    dynamicHint
+    dynamicHint,
+    excludedTags
   } = payload;
 
   const resolvedApiKey = apiKey || getEnvApiKey(provider);
@@ -1583,6 +1609,18 @@ ${recentPrompts.length > 2 ? `3. "${recentPrompts[recentPrompts.length - 3]}"` :
     resolvedUserPrompt += `\n\n### REFERENCE IMAGE IS PROVIDED\nAn image has been attached by the user as a style and composition reference.\nCompare the GENERATED IMAGE against this REFERENCE IMAGE. Analyze if the style, mood, color palette, lighting, or overall composition aligns with it.\nYour suggestions for the next iteration should attempt to match the style of the REFERENCE IMAGE while satisfying the TARGET GOAL.`;
   }
 
+  // 除外タグの注入 (Excluded / Blocked Tags constraint)
+  if (excludedTags && excludedTags.trim() !== "") {
+    const tagsList = excludedTags.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    if (tagsList.length > 0) {
+      resolvedUserPrompt += `\n\n### CRITICAL CONSTRAINT: EXCLUDED TAGS (絶対に除外すべきタグ)
+You MUST NOT include any of the following terms or phrases in the "next_prompt" or "next_negative_prompt" output:
+${tagsList.map(t => `- "${t}"`).join("\n")}
+
+If any of these keywords are present in the current prompt or negative prompt, you MUST remove them from the next output. This is a strict constraint. Do not ignore it under any circumstances.`;
+    }
+  }
+
   let aiResponseText = "";
   if (provider === "openai") {
     aiResponseText = await callOpenAI(resolvedApiKey, systemPrompt, resolvedUserPrompt, imageBase64, referenceImageBase64);
@@ -1596,12 +1634,33 @@ ${recentPrompts.length > 2 ? `3. "${recentPrompts[recentPrompts.length - 3]}"` :
     throw new Error("Invalid AI Provider specified.");
   }
 
-  let cleanedText = aiResponseText.trim();
-  if (cleanedText.startsWith("```")) {
-    cleanedText = cleanedText.replace(/^```json\s*/i, "").replace(/```$/, "");
+  let parsedResult = JSON.parse(cleanedText);
+
+  // 強制サニタイズ処理 (Force Sanitize Excluded Tags on internal loop response)
+  if (excludedTags && excludedTags.trim() !== "" && parsedResult) {
+    const tagsList = excludedTags.split(",").map(t => t.trim()).filter(t => t.length > 0);
+    tagsList.forEach(tag => {
+      const escapedTag = tag.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escapedTag}\\b|${escapedTag}`, 'gi');
+      
+      if (parsedResult.next_prompt) {
+        parsedResult.next_prompt = parsedResult.next_prompt
+          .replace(regex, "")
+          .replace(/,\s*,/g, ",")
+          .replace(/^,|,$/g, "")
+          .trim();
+      }
+      if (parsedResult.next_negative_prompt) {
+        parsedResult.next_negative_prompt = parsedResult.next_negative_prompt
+          .replace(regex, "")
+          .replace(/,\s*,/g, ",")
+          .replace(/^,|,$/g, "")
+          .trim();
+      }
+    });
   }
 
-  return JSON.parse(cleanedText);
+  return parsedResult;
 }
 
 // Save History Entry (Internal Helper)
@@ -1856,7 +1915,8 @@ async function runBackgroundOptimizationLoop() {
           useAIParamsSelection: activeJob.useAIParamsSelection,
           starredHistory,
           recentPrompts,
-          dynamicHint
+          dynamicHint,
+          excludedTags: activeJob.excludedTags
         });
       } catch (err) {
         console.error("Background AI Refine Error:", err.message);
@@ -2023,7 +2083,8 @@ app.post("/api/session/start", (req, res) => {
     hrSteps,
     generationEngine,
     comfyUrl,
-    comfyWorkflow
+    comfyWorkflow,
+    excludedTags
   } = req.body;
 
   activeJob = {
@@ -2061,6 +2122,7 @@ app.post("/api/session/start", (req, res) => {
     generationEngine: generationEngine || "sd-webui",
     comfyUrl: comfyUrl || "http://127.0.0.1:8188",
     comfyWorkflow: comfyWorkflow || "",
+    excludedTags: excludedTags || "",
     suggestedNodes: {
       face_detailer: false,
       controlnet: false,

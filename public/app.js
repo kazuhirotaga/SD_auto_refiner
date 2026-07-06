@@ -48,12 +48,14 @@ const STORAGE_KEY_AI_PARAMS = "promptcraft_ai_params";
 const STORAGE_KEY_GENERATION_ENGINE = "promptcraft_generation_engine";
 const STORAGE_KEY_COMFY_URL = "promptcraft_comfy_url";
 const STORAGE_KEY_COMFY_WORKFLOW = "promptcraft_comfy_workflow";
+const STORAGE_KEY_EXCLUDED_TAGS = "promptcraft_excluded_tags";
 
 // DOM Elements
 const startBtn = document.getElementById("start-btn");
 const stopBtn = document.getElementById("stop-btn");
 const goalInput = document.getElementById("goal-input");
 const initialPromptInput = document.getElementById("initial-prompt");
+const excludedTagsInput = document.getElementById("excluded-tags");
 const loopCountInput = document.getElementById("loop-count");
 const imageSizeSelect = document.getElementById("image-size");
 
@@ -227,9 +229,11 @@ async function loadSavedSettings() {
     console.error("Failed to load settings from server:", err);
   }
 
-  // Load remaining local storage ComfyUI parameters
   if (localStorage.getItem(STORAGE_KEY_COMFY_WORKFLOW) && comfyWorkflowInput) {
     comfyWorkflowInput.value = localStorage.getItem(STORAGE_KEY_COMFY_WORKFLOW);
+  }
+  if (localStorage.getItem(STORAGE_KEY_EXCLUDED_TAGS) && excludedTagsInput) {
+    excludedTagsInput.value = localStorage.getItem(STORAGE_KEY_EXCLUDED_TAGS);
   }
 
   // Toggle active engine panels based on engine select
@@ -389,6 +393,11 @@ function setupEventListeners() {
   initialPromptInput.addEventListener("input", () => {
     localStorage.setItem(STORAGE_KEY_INITIAL_PROMPT, initialPromptInput.value);
   });
+  if (excludedTagsInput) {
+    excludedTagsInput.addEventListener("input", () => {
+      localStorage.setItem(STORAGE_KEY_EXCLUDED_TAGS, excludedTagsInput.value);
+    });
+  }
 
   // Action Buttons
   if (startBtn) startBtn.addEventListener("click", () => startImprovementLoop());
@@ -801,6 +810,9 @@ async function checkForInterruptedSession() {
       }
       if (session.currentScheduler !== undefined && document.getElementById("select-scheduler")) {
         document.getElementById("select-scheduler").value = session.currentScheduler || "";
+      }
+      if (session.excludedTags !== undefined && excludedTagsInput) {
+        excludedTagsInput.value = session.excludedTags || "";
       }
       if (session.useReferenceImage !== undefined && refImageToggle) {
         refImageToggle.checked = session.useReferenceImage;
@@ -1283,7 +1295,8 @@ async function startImprovementLoop(resumeSession = null) {
     hrSteps,
     generationEngine: selectGenerationEngine ? selectGenerationEngine.value : "sd-webui",
     comfyUrl: comfyUrlInput ? comfyUrlInput.value.trim() : "http://127.0.0.1:8188",
-    comfyWorkflow: comfyWorkflowInput ? comfyWorkflowInput.value.trim() : ""
+    comfyWorkflow: comfyWorkflowInput ? comfyWorkflowInput.value.trim() : "",
+    excludedTags: excludedTagsInput ? excludedTagsInput.value.trim() : ""
   };
 
   // Set running state visually
