@@ -1420,9 +1420,13 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
     if (!hiresEnabled) {
       // Hiresが無効の場合：2次サンプリング側のノードをスキップし、1次最終生成画像を最終出力にバイパス配線する
       let primaryImageSourceId = null;
-      if (modified["14"] && (modified["14"].class_type === "FaceDetailer" || modified["14"].class_type === "FaceDetailerPipe")) {
+      if (modified["14"] && 
+          (modified["14"].class_type === "FaceDetailer" || modified["14"].class_type === "FaceDetailerPipe") &&
+          modified["14"].mode !== 4) {
         primaryImageSourceId = "14";
-      } else if (modified["8"] && (modified["8"].class_type === "FaceDetailer" || modified["8"].class_type === "FaceDetailerPipe")) {
+      } else if (modified["8"] && 
+                 (modified["8"].class_type === "FaceDetailer" || modified["8"].class_type === "FaceDetailerPipe") &&
+                 modified["8"].mode !== 4) {
         primaryImageSourceId = "8";
       } else if (modified["6"] && modified["6"].class_type === "VAEDecode") {
         primaryImageSourceId = "6";
