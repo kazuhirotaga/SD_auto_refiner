@@ -1968,12 +1968,23 @@ function saveHistoryInternal(data) {
 // Helper to trigger pcloud backup using rclone
 function triggerPcloudBackup() {
   const { exec } = require("child_process");
-  exec("rclone copy /root/sd-prompt-refiner/data gdrive:/sd-prompt-refiner-data", (err, stdout, stderr) => {
+  
+  // 1. Google Drive 同期 (quietモード -q でバッファ溢れ防止)
+  exec("rclone copy -q /root/sd-prompt-refiner/data gdrive:/sd-prompt-refiner-data", (err) => {
     if (err) {
       console.error("Google Drive auto-backup failed:", err.message);
-      return;
+    } else {
+      console.log("Google Drive auto-backup completed successfully.");
     }
-    console.log("Google Drive auto-backup completed successfully.");
+  });
+
+  // 2. pCloud 同期 (quietモード -q でバッファ溢れ防止)
+  exec("rclone copy -q /root/sd-prompt-refiner/data pcloud:/sd-prompt-refiner-data", (err) => {
+    if (err) {
+      console.error("pCloud auto-backup failed:", err.message);
+    } else {
+      console.log("pCloud auto-backup completed successfully.");
+    }
   });
 }
 
