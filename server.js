@@ -1199,9 +1199,13 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
 
   for (const [id, node] of Object.entries(modified)) {
     const cls = node.class_type;
-    if (cls === "KSampler") ksamplerNodeId = id;
-    else if (cls === "VAEDecode") vaeDecodeNodeId = id;
-    else if (cls === "SaveImage") saveImageNodeId = id;
+    if (cls === "KSampler") {
+      if (!ksamplerNodeId) ksamplerNodeId = id;
+    } else if (cls === "VAEDecode") {
+      if (!vaeDecodeNodeId) vaeDecodeNodeId = id;
+    } else if (cls === "SaveImage") {
+      if (!saveImageNodeId) saveImageNodeId = id;
+    }
   }
 
   // 1. KSampler -> MODEL
@@ -1272,20 +1276,21 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
     }
 
     if (node.class_type === "KSampler") {
-      ksamplerId = id;
-      if (node.inputs.positive && Array.isArray(node.inputs.positive)) {
-        positiveNodeId = node.inputs.positive[0];
+      if (!ksamplerId) {
+        ksamplerId = id;
+        if (node.inputs.positive && Array.isArray(node.inputs.positive)) {
+          positiveNodeId = node.inputs.positive[0];
+        }
+        if (node.inputs.negative && Array.isArray(node.inputs.negative)) {
+          negativeNodeId = node.inputs.negative[0];
+        }
+        if (node.inputs.latent_image && Array.isArray(node.inputs.latent_image)) {
+          latentNodeId = node.inputs.latent_image[0];
+        }
+        if (node.inputs.model && Array.isArray(node.inputs.model)) {
+          modelNodeId = node.inputs.model[0];
+        }
       }
-      if (node.inputs.negative && Array.isArray(node.inputs.negative)) {
-        negativeNodeId = node.inputs.negative[0];
-      }
-      if (node.inputs.latent_image && Array.isArray(node.inputs.latent_image)) {
-        latentNodeId = node.inputs.latent_image[0];
-      }
-      if (node.inputs.model && Array.isArray(node.inputs.model)) {
-        modelNodeId = node.inputs.model[0];
-      }
-      // Do not break loop to allow processing other nodes (like CLIPLoader & FaceDetailer)
     }
   }
 
