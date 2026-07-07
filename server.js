@@ -1199,7 +1199,9 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
   }
 
   // 2. CLIPTextEncode -> CLIP
-  const resolvedClipSource = clipLoaderId ? [clipLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 1] : null);
+  const resolvedClipSource = isAnimaModel
+    ? (clipLoaderId ? [clipLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 1] : null))
+    : (checkpointLoaderId ? [checkpointLoaderId, 1] : (clipLoaderId ? [clipLoaderId, 0] : null));
   if (resolvedClipSource) {
     for (const [id, node] of Object.entries(modified)) {
       if (node.class_type === "CLIPTextEncode") {
@@ -1212,7 +1214,9 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
   }
 
   // 3. VAEDecode -> VAE
-  const resolvedVaeSource = vaeLoaderId ? [vaeLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 2] : null);
+  const resolvedVaeSource = isAnimaModel
+    ? (vaeLoaderId ? [vaeLoaderId, 0] : (checkpointLoaderId ? [checkpointLoaderId, 2] : null))
+    : (checkpointLoaderId ? [checkpointLoaderId, 2] : (vaeLoaderId ? [vaeLoaderId, 0] : null));
   if (vaeDecodeNodeId && modified[vaeDecodeNodeId] && resolvedVaeSource) {
     const vaeDecode = modified[vaeDecodeNodeId];
     if (!vaeDecode.inputs.vae || !Array.isArray(vaeDecode.inputs.vae)) {
@@ -1231,7 +1235,7 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
   for (const [id, node] of Object.entries(modified)) {
     console.log(`[Debug] Node ${id} class_type:`, node.class_type);
     // CLIPLoader Correction (Fix missing CLIP model & type for Anima/Illustrious)
-    if (node.class_type === "CLIPLoader") {
+    if (node.class_type === "CLIPLoader" && isAnimaModel) {
       node.inputs.clip_name = "qwen_3_06b_base.safetensors";
       node.inputs.type = "qwen_image";
     }
