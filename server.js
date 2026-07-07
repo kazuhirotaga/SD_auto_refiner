@@ -1267,6 +1267,7 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
       if (node.inputs.drop_size === undefined) node.inputs.drop_size = 10;
       if (node.inputs.sam_dilation === undefined) node.inputs.sam_dilation = 0;
       if (node.inputs.sam_mask_hint_threshold === undefined) node.inputs.sam_mask_hint_threshold = 0.7;
+      if (node.inputs.guide_size_for === undefined) node.inputs.guide_size_for = true;
     }
 
     if (node.class_type === "KSampler") {
