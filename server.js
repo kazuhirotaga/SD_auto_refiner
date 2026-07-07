@@ -838,6 +838,7 @@ const PRESETS_FILE = path.join(DATA_DIR, "model_workflow_presets.json");
 // GET /api/workflow/presets - ワークフロープリセット一覧を取得
 app.get("/api/workflow/presets", (req, res) => {
   try {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
     if (!fs.existsSync(PRESETS_FILE)) {
       return res.json([]);
     }

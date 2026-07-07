@@ -279,6 +279,14 @@ async function fetchWorkflowPresets() {
           comfyWorkflowPresetSelect.appendChild(option);
         });
       }
+
+      // Automatically switch to correct preset immediately based on current checkpoint
+      const activeCheckpointText = document.getElementById("active-checkpoint");
+      const selectCheckpoint = document.getElementById("select-checkpoint");
+      const currentModel = (selectCheckpoint && selectCheckpoint.value) || (activeCheckpointText && activeCheckpointText.textContent);
+      if (currentModel && currentModel !== "未設定" && currentModel !== "未接続") {
+        autoSwitchWorkflowPreset(currentModel);
+      }
     }
   } catch (err) {
     console.error("Failed to fetch workflow presets:", err);
