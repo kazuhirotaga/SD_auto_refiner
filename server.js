@@ -833,6 +833,22 @@ app.post("/api/comfy/resources", async (req, res) => {
   }
 });
 
+const PRESETS_FILE = path.join(DATA_DIR, "model_workflow_presets.json");
+
+// GET /api/workflow/presets - ワークフロープリセット一覧を取得
+app.get("/api/workflow/presets", (req, res) => {
+  try {
+    if (!fs.existsSync(PRESETS_FILE)) {
+      return res.json([]);
+    }
+    const data = fs.readFileSync(PRESETS_FILE, "utf8");
+    res.json(JSON.parse(data));
+  } catch (err) {
+    console.error("Error reading workflow presets:", err.message);
+    res.status(500).json({ error: "Failed to read presets.", details: err.message });
+  }
+});
+
 // --- HISTORY & SESSION APIs ---
 
 // Helper: Read history from file
@@ -1452,13 +1468,10 @@ function modifyComfyWorkflow(workflow, params, availableCheckpoints = []) {
             node.inputs.image = [primaryImageSourceId, 0];
             console.log(`[Bypass-Hires] Rewired ImageUpscaleWithModel(${id}) input 'image' to Node ${primaryImageSourceId}`);
           }
-          // B. 画像を保存 (SaveImage) の入力元を1次ソースに切り替える (超解像ノードがバイパスまたは存在しない場合)
+          // B. 画像を保存 (SaveImage) の入力元を1次ソースに切り替える
           if (node.class_type === "SaveImage" && node.inputs && node.inputs.images) {
-            const hasUpscaler = Object.values(modified).some(n => n.class_type === "ImageUpscaleWithModel" && n.mode !== 4);
-            if (!hasUpscaler) {
-              node.inputs.images = [primaryImageSourceId, 0];
-              console.log(`[Bypass-Hires] Rewired SaveImage(${id}) input 'images' to Node ${primaryImageSourceId}`);
-            }
+            node.inputs.images = [primaryImageSourceId, 0];
+            console.log(`[Bypass-Hires] Rewired SaveImage(${id}) input 'images' to Node ${primaryImageSourceId}`);
           }
         }
       }

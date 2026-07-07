@@ -140,6 +140,11 @@ const metadataTableContainer = document.getElementById("metadata-table-container
 const metadataTableBody = document.getElementById("metadata-table-body");
 const cleanupHistoryBtn = document.getElementById("cleanup-history-btn");
 
+// Workflow Presets DOM & Variables
+const comfyWorkflowPresetSelect = document.getElementById("comfy-workflow-preset-select");
+const comfyWorkflowAutoSwitch = document.getElementById("comfy-workflow-auto-switch");
+let workflowPresets = [];
+
 // Session Recovery DOM
 const sessionRecoveryBanner = document.getElementById("session-recovery-banner");
 const recoveryLoopInfo = document.getElementById("recovery-loop-info");
@@ -159,6 +164,9 @@ const removeRefImgBtn = document.getElementById("remove-ref-img-btn");
 document.addEventListener("DOMContentLoaded", async () => {
   setupEventListeners();
   await loadSavedSettings();
+  
+  // Fetch workflow presets
+  await fetchWorkflowPresets();
   
   // Fetch initial prompt dictionary
   await fetchPromptDictionary();
@@ -250,6 +258,67 @@ async function loadSavedSettings() {
   // Toggle active engine panels based on engine select
   if (selectGenerationEngine) {
     toggleEngineSettingsPanel(selectGenerationEngine.value);
+  }
+}
+
+// Fetch workflow presets from server
+async function fetchWorkflowPresets() {
+  try {
+    const res = await fetch("/api/workflow/presets");
+    if (res.ok) {
+      workflowPresets = await res.json();
+      
+      // Populate select options
+      if (comfyWorkflowPresetSelect) {
+        comfyWorkflowPresetSelect.innerHTML = '<option value="">-- プリセットから適用 --</option>';
+        workflowPresets.forEach(preset => {
+          const option = document.createElement("option");
+          option.value = preset.id;
+          option.textContent = preset.name;
+          option.title = preset.description;
+          comfyWorkflowPresetSelect.appendChild(option);
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch workflow presets:", err);
+  }
+}
+
+// Automatically switch workflow preset matching the model name
+function autoSwitchWorkflowPreset(modelName) {
+  if (!comfyWorkflowAutoSwitch || !comfyWorkflowAutoSwitch.checked) return;
+  if (!modelName || workflowPresets.length === 0) return;
+
+  const lowerModel = modelName.toLowerCase();
+  
+  // 1. Search for matching preset
+  let matchedPreset = null;
+  for (const preset of workflowPresets) {
+    if (preset.matchPattern && lowerModel.includes(preset.matchPattern.toLowerCase())) {
+      matchedPreset = preset;
+      break;
+    }
+  }
+  
+  // 2. Default to illustrious_standard or first preset
+  if (!matchedPreset) {
+    matchedPreset = workflowPresets.find(p => p.id === "illustrious_standard") || workflowPresets[0];
+  }
+  
+  if (matchedPreset && comfyWorkflowInput && comfyWorkflowPresetSelect) {
+    const newJson = JSON.stringify(matchedPreset.workflow, null, 2);
+    if (comfyWorkflowInput.value.trim() !== newJson.trim()) {
+      comfyWorkflowInput.value = newJson;
+      localStorage.setItem(STORAGE_KEY_COMFY_WORKFLOW, newJson);
+      comfyWorkflowPresetSelect.value = matchedPreset.id;
+      
+      console.log(`[Auto-Preset] Automatically switched workflow to "${matchedPreset.name}" matching model "${modelName}"`);
+      
+      // Temporary success indicator glow
+      comfyWorkflowInput.style.borderColor = "var(--color-primary)";
+      setTimeout(() => { comfyWorkflowInput.style.borderColor = "var(--border-color)"; }, 1500);
+    }
   }
 }
 
@@ -367,6 +436,30 @@ function setupEventListeners() {
   if (comfyWorkflowInput) {
     comfyWorkflowInput.addEventListener("change", () => {
       localStorage.setItem(STORAGE_KEY_COMFY_WORKFLOW, comfyWorkflowInput.value.trim());
+    });
+  }
+
+  if (comfyWorkflowPresetSelect && comfyWorkflowInput) {
+    comfyWorkflowPresetSelect.addEventListener("change", () => {
+      const presetId = comfyWorkflowPresetSelect.value;
+      if (!presetId) return;
+      const preset = workflowPresets.find(p => p.id === presetId);
+      if (preset && preset.workflow) {
+        comfyWorkflowInput.value = JSON.stringify(preset.workflow, null, 2);
+        localStorage.setItem(STORAGE_KEY_COMFY_WORKFLOW, comfyWorkflowInput.value.trim());
+        comfyWorkflowInput.style.borderColor = "var(--color-success)";
+        setTimeout(() => { comfyWorkflowInput.style.borderColor = "var(--border-color)"; }, 1000);
+      }
+    });
+  }
+
+  const selectCheckpoint = document.getElementById("select-checkpoint");
+  if (selectCheckpoint) {
+    selectCheckpoint.addEventListener("change", () => {
+      const selectedModel = selectCheckpoint.value;
+      if (selectedModel && selectedModel !== "") {
+        autoSwitchWorkflowPreset(selectedModel);
+      }
     });
   }
 
@@ -1371,6 +1464,14 @@ async function startImprovementLoop(resumeSession = null) {
     currentClipSkip = 2;
     if (!manualVae) currentVae = "qwen_image_vae.safetensors";
     if (!manualTextEncoder) currentTextEncoder = "qwen_3_06b_base.safetensors";
+  }
+
+  // Automatically switch preset workflow matching the target model before starting
+  if (comfyWorkflowAutoSwitch && comfyWorkflowAutoSwitch.checked) {
+    const targetModel = currentCheckpoint || activeCheckpointText.textContent;
+    if (targetModel && targetModel !== "未設定" && targetModel !== "未接続") {
+      autoSwitchWorkflowPreset(targetModel);
+    }
   }
 
   const payload = {

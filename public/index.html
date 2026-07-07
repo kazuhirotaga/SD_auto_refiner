@@ -388,6 +388,16 @@
               
               <div class="input-group" style="margin-top: 8px;">
                 <label for="comfy-workflow-input">カスタムワークフロー JSON (API形式/任意)</label>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 6px; align-items: center; flex-wrap: wrap;">
+                  <select id="comfy-workflow-preset-select" style="flex: 1; min-width: 150px; font-size: 11px; padding: 4px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: var(--color-text); border-radius: var(--radius-sm);">
+                    <option value="">-- プリセットから適用 --</option>
+                  </select>
+                  <label style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--color-text-muted); cursor: pointer;" title="Checkpointモデルの選択に合わせて対応するプリセットワークフローを自動的に読み込んでテキストボックスに流し込みます。">
+                    <input type="checkbox" id="comfy-workflow-auto-switch" checked style="accent-color: var(--color-primary);"> モデル選択時に自動同期
+                  </label>
+                </div>
+
                 <textarea id="comfy-workflow-input" rows="6" placeholder="ComfyUIで「Save (API Format)」したJSONを貼り付けます。空欄の場合は標準のtxt2imgテンプレートが適用されます。" style="width: 100%; font-family: monospace; font-size: 11px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px; color: var(--color-text); resize: vertical;"></textarea>
                 <p class="input-tip">※ 「Enable Dev mode」を有効にして保存したAPIフォーマットのJSONが必要です。</p>
               </div>
